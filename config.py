@@ -11,7 +11,11 @@ class Config:
     """Configuration class for the system"""
     
     # API Configuration
-    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    GROQ_API_KEY = (
+        os.getenv("GROQ_API_KEY") or 
+        (hasattr(__import__('streamlit'), 'secrets') and 
+         getattr(__import__('streamlit').secrets, 'GROQ_API_KEY', None))
+    )
     GROQ_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"  # Vision model for image analysis
     
     # API Limitations
@@ -33,6 +37,16 @@ class Config:
     # Output Configuration
     OUTPUT_DIR = "analysis_results"
     FRAMES_DIR = "extracted_frames"
+    
+    # Cloud deployment configuration
+    @staticmethod
+    def is_cloud_deployment():
+        """Check if running in cloud environment"""
+        return (
+            os.getenv("STREAMLIT_SHARING_MODE") is not None or
+            "/mount/src/" in os.getcwd() or
+            "streamlit" in os.getenv("HOME", "").lower()
+        )
     
     # Prompt Enhancement
     DETAILED_ANALYSIS = True

@@ -13,18 +13,31 @@ from datetime import datetime
 import time
 import json
 from typing import Dict, Any, List
-import cv2
+
+# Defensive imports for cloud deployment
+try:
+    import cv2
+except ImportError as e:
+    st.error(f"OpenCV import failed: {e}")
+    st.error("Please check system dependencies. If deploying to Streamlit Cloud, ensure packages.txt contains required system libraries.")
+    st.stop()
+
 from PIL import Image
 import numpy as np
 
 # Import our system
-from reverse_engineer import ReverseEngineerSystem
-from config import Config
-from streamlit_config import (
-    configure_page, load_custom_css, initialize_session_state,
-    format_file_size, format_duration, validate_file_type,
-    get_file_info, handle_error, APP_CONFIG
-)
+try:
+    from reverse_engineer import ReverseEngineerSystem
+    from config import Config
+    from streamlit_config import (
+        configure_page, load_custom_css, initialize_session_state,
+        format_file_size, format_duration, validate_file_type,
+        get_file_info, handle_error, APP_CONFIG
+    )
+except ImportError as e:
+    st.error(f"Failed to import system modules: {e}")
+    st.error("Please ensure all dependencies are installed correctly.")
+    st.stop()
 
 # Configure page
 configure_page()
