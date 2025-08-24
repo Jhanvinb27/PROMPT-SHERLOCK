@@ -41,7 +41,7 @@ class AdvancedFrameSelector:
             
             # Combine metrics
             complexity_score = (edge_density * 0.4 + lbp_complexity * 0.3 + color_entropy * 0.3)
-            return complexity_score
+            return float(complexity_score)
             
         except Exception as e:
             # Fallback: simple edge-based complexity
@@ -49,7 +49,7 @@ class AdvancedFrameSelector:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 edges = cv2.Canny(gray, 50, 150)
                 edge_density = np.sum(edges > 0) / edges.size
-                return edge_density
+                return float(edge_density)
             except:
                 return 0.1  # Default minimal complexity
     
@@ -87,12 +87,12 @@ class AdvancedFrameSelector:
                     # Calculate motion vectors
                     motion_vectors = good_new - good_old
                     motion_magnitude = np.mean(np.sqrt(np.sum(motion_vectors**2, axis=1)))
-                    return motion_magnitude
+                    return float(motion_magnitude)
             
             # Fallback: use frame difference
             diff = cv2.absdiff(gray1, gray2)
             motion_magnitude = np.mean(diff) / 255.0
-            return motion_magnitude
+            return float(motion_magnitude)
             
         except Exception as e:
             # Ultimate fallback: simple frame difference
@@ -101,7 +101,7 @@ class AdvancedFrameSelector:
                 gray2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
                 diff = cv2.absdiff(gray1, gray2)
                 motion_magnitude = np.mean(diff) / 255.0
-                return motion_magnitude
+                return float(motion_magnitude)
             except:
                 return 0.0
     
@@ -125,7 +125,7 @@ class AdvancedFrameSelector:
             object_score = AdvancedFrameSelector.detect_interesting_objects(frame)
             importance_score += object_score * 0.3
             
-            return min(importance_score, 1.0)  # Ensure score doesn't exceed 1.0
+            return float(min(importance_score, 1.0))  # Ensure score doesn't exceed 1.0
             
         except Exception as e:
             # Fallback: simple edge-based importance
@@ -162,7 +162,7 @@ class AdvancedFrameSelector:
             
             # Combine scores
             object_score = (feature_density * 0.6 + contour_score * 0.4)
-            return min(object_score, 1.0)
+            return float(min(object_score, 1.0))
             
         except Exception as e:
             # Fallback: use edge density as object score
@@ -170,7 +170,7 @@ class AdvancedFrameSelector:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 edges = cv2.Canny(gray, 50, 150)
                 edge_density = np.sum(edges > 0) / edges.size
-                return min(edge_density * 5.0, 1.0)  # Scale and normalize
+                return float(min(edge_density * 5.0, 1.0))  # Scale and normalize
             except:
                 return 0.1  # Default minimal score
     
@@ -191,7 +191,7 @@ class AdvancedFrameSelector:
         
         # Combine entropies
         diversity_score = (h_entropy + s_entropy + v_entropy) / 3.0
-        return min(diversity_score / 8.0, 1.0)  # Normalize
+        return float(min(diversity_score / 8.0, 1.0))  # Normalize
 
 
 class ImageProcessor:
@@ -290,7 +290,7 @@ class ImageProcessor:
         
         # Combine metrics (lower is more different)
         combined_similarity = (ssim_score * 0.7 + hist_diff * 0.3)
-        return 1 - combined_similarity  # Return difference
+        return float(1 - combined_similarity)  # Return difference
 
 
 class VideoProcessor:
@@ -463,10 +463,10 @@ class VideoProcessor:
             color_diversity = self.frame_selector.calculate_color_diversity(frame)
             
             metadata = {
-                "importance_score": importance,
-                "visual_complexity": complexity,
-                "color_diversity": color_diversity,
-                "timestamp": timestamp
+                "importance_score": float(importance),
+                "visual_complexity": float(complexity),
+                "color_diversity": float(color_diversity),
+                "timestamp": float(timestamp)
             }
             
             scored_frames.append((frame, timestamp, metadata))
@@ -513,7 +513,9 @@ class VideoProcessor:
         
         # If we still need more frames, fill with best remaining candidates
         if len(selected) < max_frames:
-            remaining_candidates = [f for f in scored_frames if f not in selected]
+            # Use timestamps to identify selected frames (avoid numpy array comparison)
+            selected_timestamps = set(ts for _, ts, _ in selected)
+            remaining_candidates = [f for f in scored_frames if f[1] not in selected_timestamps]
             remaining_candidates.sort(key=lambda x: x[2]["importance_score"], reverse=True)
             
             for candidate in remaining_candidates:

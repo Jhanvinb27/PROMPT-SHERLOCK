@@ -220,11 +220,29 @@ class ReverseEngineerSystem:
             
             # Save metadata
             metadata_path = frames_dir / f"frame_{i+1:03d}_metadata.json"
+            
+            # Convert numpy types for JSON serialization
+            def convert_for_json(obj):
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                elif isinstance(obj, np.integer):
+                    return int(obj)
+                elif isinstance(obj, np.floating):
+                    return float(obj)
+                elif isinstance(obj, dict):
+                    return {k: convert_for_json(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_for_json(item) for item in obj]
+                return obj
+            
+            # Convert metadata before saving
+            converted_metadata = convert_for_json(metadata)
+            
             with open(metadata_path, 'w') as f:
                 json.dump({
                     "frame_number": i + 1,
-                    "timestamp": timestamp,
-                    "metadata": metadata,
+                    "timestamp": float(timestamp),
+                    "metadata": converted_metadata,
                     "extraction_method": "advanced_intelligent_selection",
                     "frame_path": str(frame_path)
                 }, f, indent=2)

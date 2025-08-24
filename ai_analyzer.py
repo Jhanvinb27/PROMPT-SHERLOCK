@@ -312,7 +312,7 @@ Focus on accuracy, specificity, and completeness. Resolve any contradictions by 
 
         try:
             response = self.client.chat.completions.create(
-                model="llama-3.1-70b-versatile",  # Use text model for synthesis
+                model="llama-3.3-70b-versatile",  # Use text model for synthesis
                 messages=[
                     {
                         "role": "system",
@@ -518,7 +518,7 @@ This master prompt must enable perfect recreation of the entire video sequence."
 
         try:
             response = self.client.chat.completions.create(
-                model="llama-3.1-70b-versatile",  # Use powerful text model for synthesis
+                model="llama-3.3-70b-versatile",  # Use powerful text model for synthesis
                 messages=[
                     {
                         "role": "system",
