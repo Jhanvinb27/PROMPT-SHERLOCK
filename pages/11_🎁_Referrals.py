@@ -1,3 +1,5 @@
+from components.auth_bootstrap import ensure_session_bootstrap
+ensure_session_bootstrap()
 import streamlit as st
 from streamlit_config import configure_page, load_custom_css, initialize_session_state
 from components.navigation import app_header

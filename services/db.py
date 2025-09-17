@@ -9,6 +9,14 @@ from typing import Optional, List
 from pathlib import Path
 from datetime import datetime, date
 from models.user import User, SubscriptionPlan, Subscription, UsageLog
+from datetime import datetime, date
+
+# Forward references for type hints (models to be added)
+try:
+    from models.analysis import Analysis, Session
+except Exception:
+    Analysis = None  # type: ignore
+    Session = None  # type: ignore
 
 DB_PATH = Path("app_data.sqlite3")
 
@@ -23,17 +31,23 @@ class _DB:
     def _init(self):
         conn = self._conn()
         cur = conn.cursor()
-        # Users
+        # Users (role column added for permissions)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             name TEXT,
+            role TEXT DEFAULT 'free',
             created_at TEXT,
             updated_at TEXT
         )
         """)
+        # Lightweight migration attempt if upgrading existing DB
+        try:
+            cur.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'free'")
+        except Exception:
+            pass
         # Plans
         cur.execute("""
         CREATE TABLE IF NOT EXISTS plans (
@@ -66,6 +80,48 @@ class _DB:
             action TEXT NOT NULL,
             meta TEXT,
             created_at TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """)
+        # Analyses table (stores summary metadata for each analysis)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS analyses (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER,
+            content_type TEXT,
+            source_filename TEXT,
+            stored_path TEXT,
+            prompt_preview TEXT,
+            full_prompt_path TEXT,
+            thumbnail_path TEXT,
+            duration REAL,
+            frames INTEGER,
+            created_at TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """)
+        # Sessions table for persistent login
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            token TEXT UNIQUE NOT NULL,
+            user_agent TEXT,
+            ip_address TEXT,
+            expires_at TEXT,
+            created_at TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """)
+        # User settings table
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_settings (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT,
+            updated_at TEXT,
+            UNIQUE(user_id, key),
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
         """)
@@ -112,19 +168,61 @@ class _DB:
 
     def get_user_by_email(self, email: str) -> Optional[User]:
         conn = self._conn(); cur = conn.cursor()
-        row = cur.execute("SELECT id, email, password_hash, name, created_at, updated_at FROM users WHERE email=?", (email,)).fetchone()
+        row = cur.execute("SELECT id, email, password_hash, name, role, created_at, updated_at FROM users WHERE email=?", (email,)).fetchone()
         conn.close()
         if not row:
             return None
-        return User(id=row[0], email=row[1], password_hash=row[2], name=row[3], created_at=datetime.fromisoformat(row[4]), updated_at=datetime.fromisoformat(row[5]))
+        return User(id=row[0], email=row[1], password_hash=row[2], name=row[3], role=row[4] or 'free', created_at=datetime.fromisoformat(row[5]), updated_at=datetime.fromisoformat(row[6]))
 
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         conn = self._conn(); cur = conn.cursor()
-        row = cur.execute("SELECT id, email, password_hash, name, created_at, updated_at FROM users WHERE id=?", (user_id,)).fetchone()
+        row = cur.execute("SELECT id, email, password_hash, name, role, created_at, updated_at FROM users WHERE id=?", (user_id,)).fetchone()
         conn.close()
         if not row:
             return None
-        return User(id=row[0], email=row[1], password_hash=row[2], name=row[3], created_at=datetime.fromisoformat(row[4]), updated_at=datetime.fromisoformat(row[5]))
+        return User(id=row[0], email=row[1], password_hash=row[2], name=row[3], role=row[4] or 'free', created_at=datetime.fromisoformat(row[5]), updated_at=datetime.fromisoformat(row[6]))
+
+    # Analyses
+    def save_analysis(self, analysis):
+        conn = self._conn(); cur = conn.cursor()
+        cur.execute("""INSERT INTO analyses (user_id, content_type, source_filename, stored_path, prompt_preview, full_prompt_path, thumbnail_path, duration, frames, created_at)
+                      VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (analysis.user_id, analysis.content_type, analysis.source_filename, analysis.stored_path, analysis.prompt_preview, analysis.full_prompt_path, analysis.thumbnail_path, analysis.duration, analysis.frames, analysis.created_at.isoformat()))
+        analysis_id = cur.lastrowid
+        conn.commit(); conn.close(); return analysis_id
+
+    def list_analyses(self, user_id: int, limit: int = 100):
+        conn = self._conn(); cur = conn.cursor()
+        rows = cur.execute("SELECT id, user_id, content_type, source_filename, stored_path, prompt_preview, full_prompt_path, thumbnail_path, duration, frames, created_at FROM analyses WHERE user_id=? ORDER BY created_at DESC LIMIT ?", (user_id, limit)).fetchall()
+        conn.close(); return rows
+
+    # Sessions
+    def save_session(self, session):
+        conn = self._conn(); cur = conn.cursor()
+        cur.execute("INSERT INTO sessions (user_id, token, user_agent, ip_address, expires_at, created_at) VALUES (?,?,?,?,?,?)",
+                    (session.user_id, session.token, session.user_agent, session.ip_address, session.expires_at.isoformat(), session.created_at.isoformat()))
+        conn.commit(); conn.close()
+
+    def get_session(self, token: str):
+        conn = self._conn(); cur = conn.cursor()
+        row = cur.execute("SELECT user_id, token, user_agent, ip_address, expires_at, created_at FROM sessions WHERE token=?", (token,)).fetchone()
+        conn.close(); return row
+
+    def delete_session(self, token: str):
+        conn = self._conn(); cur = conn.cursor()
+        cur.execute("DELETE FROM sessions WHERE token=?", (token,)); conn.commit(); conn.close()
+
+    # User settings
+    def set_user_setting(self, user_id: int, key: str, value: str):
+        conn = self._conn(); cur = conn.cursor()
+        cur.execute("INSERT INTO user_settings (user_id, key, value, updated_at) VALUES (?,?,?,?) ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+                    (user_id, key, value, datetime.utcnow().isoformat()))
+        conn.commit(); conn.close()
+
+    def get_user_settings(self, user_id: int) -> dict:
+        conn = self._conn(); cur = conn.cursor()
+        rows = cur.execute("SELECT key, value FROM user_settings WHERE user_id=?", (user_id,)).fetchall(); conn.close()
+        return {k: v for k, v in rows}
 
     # Subscriptions
     def save_subscription(self, sub: Subscription):

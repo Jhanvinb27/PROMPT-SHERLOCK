@@ -17,7 +17,7 @@
 
 ---
 
-> New: A polished multi-page Streamlit UI (SaaS-style) has been added under `pages/` with auth, dashboard, pricing, profile, settings, usage, help, and legal pages. The legacy single-page interface remains available via `streamlit_app.py`.
+> New: Production-style multi‑page SaaS shell (auth, dashboard, usage history, pricing, admin, settings, legal, help, referrals) + onboarding tooltips + secure session persistence + fallback launcher.
 
 ## 🎯 What is Prompt Detective?
 
@@ -80,18 +80,24 @@ Create a `.env` file with your Groq API key:
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
-## 🚀 Quick Start
+### 🚀 Quick Start
 
-### Launch the Web Interface
+#### Launch (Recommended New UI)
+```bash
+streamlit run app_launcher.py
+```
+The launcher routes to the new multi‑page interface and gracefully falls back to the legacy single page if a breaking error occurs.
+
+#### Direct Legacy Mode (Optional)
 ```bash
 streamlit run streamlit_app.py
 ```
 
-### Access the Application
-1. Open your browser to `http://localhost:8501`
-2. Upload a video (MP4, AVI, MOV) or image (JPG, PNG)
-3. Click "Start Analysis"
-4. Get detailed AI generation prompts and metadata!
+#### Access
+1. Visit `http://localhost:8501`
+2. Sign up (stores hashed credentials; bcrypt if installed)
+3. Explore Dashboard → Upload image/video → Analyze
+4. View saved summaries in Usage History; adjust preferences in Settings
 
 ## 📖 Usage
 
@@ -118,16 +124,24 @@ streamlit run streamlit_app.py
 
 ## 🔧 Configuration
 
-### Environment Variables
+### Environment Variables (Excerpt)
 ```bash
-# Required
+# Core
 GROQ_API_KEY=your_api_key
 
-# Optional
-MAX_FRAMES=10                    # Maximum frames to analyze
-ANALYSIS_QUALITY=high           # Analysis quality setting
-OUTPUT_FORMAT=both              # json, txt, or both
+# Feature Flags / Future Integrations
+STRIPE_PUBLIC_KEY=pk_test_xxx          # (optional) enable pricing checkout UI
+STRIPE_SECRET_KEY=sk_test_xxx          # (optional) server operations
+ENABLE_ONBOARDING_TOOLTIPS=true        # toggle contextual guidance
+FORCE_LEGACY_UI=false                  # force legacy single page (debug)
+
+# Security / Sessions
+SESSION_TTL_MIN=720                    # override default 12h (optional)
+
+# Logging / Diagnostics
+LOG_LEVEL=info
 ```
+See `.env.example` for full annotated list.
 
 ### Advanced Settings
 Edit `config.py` for detailed customization:
@@ -162,23 +176,63 @@ Edit `config.py` for detailed customization:
 
 ```
 Prompt-Detective/
-├── 🎯 Core Components
-│   ├── streamlit_app.py      # Main web interface
-│   ├── reverse_engineer.py   # Core analysis engine
-│   ├── ai_analyzer.py        # AI analysis system
-│   └── utils.py             # Computer vision utilities
-├── ⚙️ Configuration
-│   ├── config.py            # System configuration
-│   ├── streamlit_config.py  # UI configuration
-│   └── .env                 # Environment variables
-├── 📦 Resources
-│   ├── requirements.txt     # Dependencies
-│   ├── samples/            # Sample files
-│   └── analysis_results/   # Output directory
-└── 📚 Documentation
-    ├── README.md           # This file
-    └── LICENSE             # MIT License
+├── app_launcher.py            # Unified entrypoint with graceful fallback
+├── streamlit_app.py           # Legacy single-page interface
+├── pages/                     # Multi-page SaaS UI (Home, Login, Signup, Dashboard, etc.)
+├── components/                # Reusable UI (navigation, onboarding tooltips)
+├── services/                  # auth_service, db layer, error utilities
+├── models/                    # (User, Subscription, Analysis dataclasses)
+├── reverse_engineer.py        # Core analysis engine (unchanged)
+├── ai_analyzer.py             # AI multi-pass logic (unchanged)
+├── utils.py                   # CV helper utilities
+├── config.py / streamlit_config.py
+├── analysis_results/          # Stored prompts / frames exports
+├── samples/                   # Sample media
+├── requirements.txt / packages.txt
+└── README.md
 ```
+
+## 🧩 SaaS Layer Additions
+
+### Authentication & Sessions
+- Email + password signup/login (bcrypt hashing if library present; SHA-256 fallback)
+- Persistent DB-backed sessions (token + expiry) with automatic restoration
+- Role = plan code (free/pro/team/admin) used for gating
+
+### Plans & Usage Limits
+- Seeded plans (free/pro/team) with daily analysis quotas
+- Real-time quota check before analysis (friendly message + upgrade CTA)
+
+### Persistent History
+- Each successful analysis stores: type, filename, preview, duration/frames
+- `Usage & History` page with search, type filter, limit control, record details
+
+### Settings & Personalization
+- Theme, email notifications (placeholder), onboarding tooltip toggle
+- Server-side storage in `user_settings` table
+
+### Onboarding Guidance
+- Contextual lightweight tooltips (dismiss & persist per user)
+- Feature flag to disable globally
+
+### Admin Utilities
+- Admin page listing users, roles, metrics (future: role elevation, plan management)
+
+### Legal & Compliance Placeholders
+- Structured Terms of Service & Privacy Policy pages (replace with counsel text)
+- Help & FAQ page with contact form placeholder
+
+### Fallback Launcher
+- `app_launcher.py` attempts modern UI → falls back to legacy if errors occur
+- Diagnostic expander reveals import/runtime issues for rapid recovery
+
+### Error Handling
+- Decorator + context manager for safe UI error boundaries
+
+### Security Notes
+- Strong hashing (bcrypt) recommended (auto-used if installed)
+- Constant-time compare; input validation for email/password
+- Future ready: OAuth, 2FA (hooks reserved)
 
 ## 🔬 Technology Stack
 
@@ -226,6 +280,21 @@ with shallow depth of field, shot with Sony FX6 camera..."
 - **Prompt Completeness**: 96%
 - **Overall Confidence**: 93%
 
+## 🧪 Development / Testing
+
+### Local Dev Tips
+1. Launch with launcher for safety: `streamlit run app_launcher.py`
+2. Modify pages under `pages/` (naming with numeric prefix defines order)
+3. Avoid editing core analysis modules unless improving CV/AI logic intentionally
+4. Use `analysis_results/` to inspect saved prompt artifacts
+
+### Minimal Manual Test Checklist
+- Signup → Login → Session persists after refresh
+- Run image & video analysis → Appears in Usage History
+- Toggle tooltips off in Settings → Tooltips disappear
+- Exceed free quota (5) → Gating message & upgrade CTA
+- Force failure (rename a core import) → Launcher offers legacy fallback
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our contributing guidelines:
@@ -258,5 +327,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <div align="center">
 
 **⭐ Star this repo if you find it useful! ⭐**
+
+_Built with a focus on clarity, graceful degradation, and forensic-quality analysis._
 
 </div>

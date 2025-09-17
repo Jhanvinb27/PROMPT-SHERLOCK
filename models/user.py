@@ -11,6 +11,7 @@ class User:
     name: str
     created_at: datetime
     updated_at: datetime
+    role: str = 'free'
 
 @dataclass
 class SubscriptionPlan:
