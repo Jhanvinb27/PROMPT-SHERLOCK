@@ -1,11 +1,12 @@
 import streamlit as st
+import os
 from services.db import db
 from services.auth_service import current_user
 from datetime import datetime
 
 """Onboarding / contextual tooltip helpers.
 Simple, lightweight system reading persistent user_settings keys.
-- show_tooltips flag governs visibility
+- show_tooltips flag governs visibility (can be overridden by ENABLE_ONBOARDING_TOOLTIPS env var)
 - Each tooltip can be dismissed individually and stored as dismissed_on:<key>
 """
 
@@ -32,6 +33,14 @@ DISMISS_PREFIX = 'dismissed_tooltip_'  # stored as user_settings flag
 
 
 def tooltips_enabled(user_id: int) -> bool:
+    # Check global environment variable first
+    env_setting = os.getenv("ENABLE_ONBOARDING_TOOLTIPS", "").lower()
+    if env_setting in ("false", "0", "no", "off"):
+        return False
+    if env_setting in ("true", "1", "yes", "on"):
+        return True
+    
+    # Fall back to user setting
     settings = db.get_user_settings(user_id)
     return settings.get('show_tooltips', 'true') == 'true'
 

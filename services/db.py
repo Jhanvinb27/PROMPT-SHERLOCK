@@ -18,7 +18,20 @@ except Exception:
     Analysis = None  # type: ignore
     Session = None  # type: ignore
 
-DB_PATH = Path("app_data.sqlite3")
+# Import config to get database URL
+try:
+    from config import Config
+    DATABASE_URL = Config.DATABASE_URL
+except ImportError:
+    # Fallback if config is not available
+    import os
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///app_data.sqlite3")
+
+# Extract the path from sqlite:/// URL format
+if DATABASE_URL.startswith("sqlite:///"):
+    DB_PATH = Path(DATABASE_URL.replace("sqlite:///", ""))
+else:
+    DB_PATH = Path("app_data.sqlite3")
 
 class _DB:
     def __init__(self, path: Path):

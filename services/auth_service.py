@@ -16,7 +16,7 @@ from urllib.parse import urlencode
 
 COOKIE_KEY = "pd_session_token"
 
-SESSION_TTL_MIN = 720  # 12h
+SESSION_TTL_MIN = int(os.getenv("SESSION_TTL_MIN", "720"))  # 12h default, configurable via env
 
 # Feature flag: allow stronger hashing if bcrypt available
 try:

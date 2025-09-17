@@ -10,6 +10,17 @@ load_dotenv()
 class Config:
     """Configuration class for the system"""
     
+    # Environment Configuration
+    APP_ENV = os.getenv("APP_ENV", "development")
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "info")
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///app_data.sqlite3")
+    
+    # Feature Flags
+    ENABLE_USAGE_ANALYTICS = os.getenv("ENABLE_USAGE_ANALYTICS", "true").lower() == "true"
+    ENABLE_LEGACY_FALLBACK = os.getenv("ENABLE_LEGACY_FALLBACK", "true").lower() == "true"
+    SHOW_EXPERIMENTAL_PARAMS = os.getenv("SHOW_EXPERIMENTAL_PARAMS", "false").lower() == "true"
+    ENABLE_DEBUG_TOOLBAR = os.getenv("ENABLE_DEBUG_TOOLBAR", "false").lower() == "true"
+    
     # API Configuration
     GROQ_API_KEY = (
         os.getenv("GROQ_API_KEY") or 
