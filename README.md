@@ -17,6 +17,8 @@
 
 ---
 
+> New: A polished multi-page Streamlit UI (SaaS-style) has been added under `pages/` with auth, dashboard, pricing, profile, settings, usage, help, and legal pages. The legacy single-page interface remains available via `streamlit_app.py`.
+
 ## 🎯 What is Prompt Detective?
 
 Prompt Detective is a sophisticated AI-powered system that reverse-engineers visual content to discover the original prompts and parameters used to create AI-generated images and videos. Using advanced computer vision algorithms and multi-pass AI analysis, it can decode the creative DNA behind any visual content.

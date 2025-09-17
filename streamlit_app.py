@@ -1,5 +1,6 @@
 """
-Professional Streamlit Interface for AI Reverse Engineering System
+Legacy single-page interface kept for backward compatibility.
+Note: The production app now uses Streamlit Pages under the pages/ directory.
 """
 import streamlit as st
 import os
@@ -44,12 +45,23 @@ configure_page()
 load_custom_css()
 initialize_session_state()
 
+# Optional: auth/usage services for SaaS wrapper
+try:
+    from services.auth_service import current_user, can_analyze, track_usage
+except Exception:
+    current_user = lambda: None
+    def can_analyze(user):
+        return True, ""
+    def track_usage(*args, **kwargs):
+        pass
+
 class StreamlitInterface:
     """Main Streamlit interface class"""
-    
+
     def __init__(self):
         """Initialize the interface"""
         self.system = None
+        self.user = None
     
     def initialize_system(self):
         """Initialize the AI system"""
@@ -170,6 +182,12 @@ class StreamlitInterface:
         """Render the file upload and analysis tab"""
         st.markdown("## 📤 Upload & Analyze Content")
         
+        # Auth gate and gentle upsell
+        self.user = current_user()
+        if not self.user:
+            st.info("Login to save history, track usage, and unlock daily free analyses.")
+            st.page_link("pages/01_🔐_Login.py", label="Login", icon="🔐")
+
         # File upload
         uploaded_files = st.file_uploader(
             "Choose video or image files",
@@ -205,6 +223,13 @@ class StreamlitInterface:
             
             # Analyze button
             if st.button("🚀 Start Analysis", type="primary"):
+                # Daily limit enforcement if logged in
+                if self.user:
+                    allowed, msg = can_analyze(self.user)
+                    if not allowed:
+                        st.warning(msg)
+                        st.page_link("pages/04_💳_Pricing.py", label="See pricing", icon="💳")
+                        return
                 self.analyze_uploaded_files(uploaded_files, save_frames, detailed_analysis)
     
     def analyze_uploaded_files(self, uploaded_files, save_frames=True, detailed_analysis=True):
@@ -225,6 +250,7 @@ class StreamlitInterface:
                 
                 # Save uploaded file temporarily
                 temp_dir = tempfile.mkdtemp()
+                # Preserve original filename & extension for correct type detection
                 temp_path = os.path.join(temp_dir, uploaded_file.name)
                 
                 try:
@@ -247,6 +273,13 @@ class StreamlitInterface:
                     # Store result
                     st.session_state.analysis_results.append(result)
                     st.session_state.current_analysis = result
+
+                    # Track usage per successful run
+                    try:
+                        if self.user and "error" not in result:
+                            track_usage(self.user.id, "analyze", {"file": uploaded_file.name, "type": result.get("content_type")})
+                    except Exception:
+                        pass
                     
                     # Display result immediately
                     with results_container:
@@ -1121,27 +1154,22 @@ class StreamlitInterface:
         """)
 
 def main():
-    """Main Streamlit application"""
+    """Legacy entry: link to the new Home page while preserving old UI."""
+    st.markdown("## Prompt Detective — New UI Available")
+    st.info("A new, polished multi-page experience is available from the sidebar or below.")
+    st.page_link("pages/00_🏠_Home.py", label="Go to Home", icon="🏠")
+    st.markdown("---")
+    st.caption("Legacy interface below (unchanged core analysis modules)")
     app = StreamlitInterface()
-    
-    # Render header
     app.render_header()
-    
-    # Render sidebar
     app.render_sidebar()
-    
-    # Main tabs
     tab1, tab2, tab3, tab4 = st.tabs(["📤 Upload & Analyze", "🔄 Batch Processing", "📈 Results & History", "📚 Help"])
-    
     with tab1:
         app.render_file_upload_tab()
-    
     with tab2:
         app.render_batch_processing_tab()
-    
     with tab3:
         app.render_results_tab()
-    
     with tab4:
         app.render_help_tab()
 
