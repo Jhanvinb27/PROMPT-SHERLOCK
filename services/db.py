@@ -209,6 +209,23 @@ class _DB:
         rows = cur.execute("SELECT id, user_id, content_type, source_filename, stored_path, prompt_preview, full_prompt_path, thumbnail_path, duration, frames, created_at FROM analyses WHERE user_id=? ORDER BY created_at DESC LIMIT ?", (user_id, limit)).fetchall()
         conn.close(); return rows
 
+    def get_analysis_by_id(self, analysis_id: int) -> Optional[object]:
+        conn = self._conn(); cur = conn.cursor()
+        row = cur.execute("SELECT id, user_id, content_type, source_filename, stored_path, prompt_preview, full_prompt_path, thumbnail_path, duration, frames, created_at FROM analyses WHERE id=?", (analysis_id,)).fetchone()
+        conn.close()
+        if not row:
+            return None
+        return Analysis(
+            id=row[0], user_id=row[1], content_type=row[2], source_filename=row[3], stored_path=row[4],
+            prompt_preview=row[5], full_prompt_path=row[6], thumbnail_path=row[7], duration=row[8],
+            frames=row[9], created_at=datetime.fromisoformat(row[10])
+        )
+
+    def update_analysis_prompt_preview(self, analysis_id: int, new_preview: str, full_prompt_path: str = "") -> None:
+        conn = self._conn(); cur = conn.cursor()
+        cur.execute("UPDATE analyses SET prompt_preview=?, full_prompt_path=? WHERE id=?", (new_preview, full_prompt_path, analysis_id))
+        conn.commit(); conn.close()
+
     # Sessions
     def save_session(self, session):
         conn = self._conn(); cur = conn.cursor()

@@ -5,6 +5,7 @@ from streamlit_config import configure_page, load_custom_css, initialize_session
 from components.navigation import app_header
 from components.onboarding import render_tooltip
 from services.auth_service import current_user, can_analyze, track_usage
+from services.media_storage import save_uploaded_file
 from reverse_engineer import ReverseEngineerSystem
 from services.db import db
 from models.analysis import Analysis
@@ -41,39 +42,56 @@ if files:
     else:
         sys = ReverseEngineerSystem()
         for f in files:
-            import tempfile, os, time, pathlib
-            # Preserve original extension so format detection works
-            suffix = pathlib.Path(f.name).suffix or ""
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp.write(f.getvalue()); tmp_path = tmp.name
+            import os, time
+            # Persist upload to user directory to allow regeneration later
+            tmp_path = save_uploaded_file(user.id, f.name, f.getvalue())
             with st.spinner(f"Analyzing {f.name}..."):
                 res = sys.analyze_content(tmp_path, save_frames=True)
-            os.unlink(tmp_path)
             if 'error' in res:
                 st.error(res['error'])
             else:
                 track_usage(user.id, 'analyze', {"filename": f.name})
                 st.success(f"Done: {f.name}")
-                prompt = res.get('comprehensive_video_prompt') or res.get('suggested_prompt', '')
+                # Robust prompt extraction for both videos and images
+                def _extract_prompt(r: dict) -> str:
+                    ctype = (r.get('content_type') or '').lower()
+                    if ctype == 'video':
+                        return r.get('comprehensive_video_prompt') or r.get('video_prompt') or ''
+                    # image flow
+                    p = r.get('suggested_prompt')
+                    if p:
+                        return p
+                    # try prompt-focused individual analysis
+                    ind = r.get('individual_analyses') or []
+                    for a in ind:
+                        if a.get('analysis_type') == 'prompt_analysis' and a.get('raw_analysis'):
+                            return a['raw_analysis']
+                    # fall back to synthesized comprehensive analysis
+                    return r.get('comprehensive_analysis') or ''
+
+                prompt = _extract_prompt(res)
                 if prompt:
                     st.text_area("Prompt", prompt, height=200)
+                    # Offer download of saved prompt file if available
+                    if res.get('saved_txt_path'):
+                        st.caption(f"Prompt saved: {res['saved_txt_path']}")
                 # Persist analysis summary
                 try:
                     preview = (prompt[:180] + '…') if prompt and len(prompt) > 180 else (prompt or '')
                     content_type = res.get('content_type','unknown')
                     duration = res.get('video_info',{}).get('duration') if content_type=='video' else None
                     frames = res.get('extracted_frames') or res.get('frames_analyzed') if content_type=='video' else None
-                    full_prompt_path = None  # could map to saved txt if needed later
-                    thumbnail_path = None  # placeholder (frame saving already occurs in core logic)
+                    full_prompt_path = res.get('saved_txt_path') or ''
+                    thumbnail_path = res.get('thumbnail_path') or ''
                     analysis = Analysis(
                         id=None,
                         user_id=user.id,
                         content_type=content_type,
                         source_filename=f.name,
-                        stored_path=res.get('source_file',''),
+                        stored_path=res.get('source_file','') or tmp_path,
                         prompt_preview=preview,
-                        full_prompt_path=full_prompt_path or '',
-                        thumbnail_path=thumbnail_path or '',
+                        full_prompt_path=full_prompt_path,
+                        thumbnail_path=thumbnail_path,
                         duration=duration,
                         frames=frames,
                         created_at=datetime.utcnow()

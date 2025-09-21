@@ -329,23 +329,28 @@ Focus on accuracy, specificity, and completeness. Resolve any contradictions by 
             
             synthesized_content = response.choices[0].message.content
             
+            # Attempt to extract a prompt-like section as suggested_prompt fallback
+            fallback_prompt = synthesized_content
             return {
                 "comprehensive_analysis": synthesized_content,
                 "individual_analyses": analyses,
                 "synthesis_method": "multi_pass_expert_validation",
                 "accuracy_confidence": "high",
-                "image_dimensions": f"{image_shape[1]}x{image_shape[0]}"
+                "image_dimensions": f"{image_shape[1]}x{image_shape[0]}",
+                "suggested_prompt": fallback_prompt
             }
             
         except Exception as e:
             print(f"Synthesis failed, using best individual analysis: {e}")
             # Fallback to best individual analysis
             best_analysis = max(analyses, key=lambda x: len(x.get('raw_analysis', '')))
+            best_text = best_analysis.get('raw_analysis', '')
             return {
-                "comprehensive_analysis": best_analysis.get('raw_analysis', ''),
+                "comprehensive_analysis": best_text,
                 "individual_analyses": analyses,
                 "synthesis_method": "fallback_best_individual",
-                "accuracy_confidence": "medium"
+                "accuracy_confidence": "medium",
+                "suggested_prompt": best_text
             }
     
     def analyze_video_frames(self, frames_with_timestamps: List[tuple], video_info: Dict) -> Dict[str, Any]:

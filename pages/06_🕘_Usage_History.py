@@ -6,6 +6,8 @@ from components.navigation import app_header
 from components.onboarding import render_tooltip
 from services.auth_service import current_user
 from services.db import db
+from reverse_engineer import ReverseEngineerSystem
+import os
 from datetime import datetime
 import pandas as pd
 
@@ -39,6 +41,8 @@ for r in rows:
         "ID": aid,
         "Type": content_type,
         "File": source_filename,
+        "Stored Path": stored_path,
+        "Thumbnail": thumbnail_path,
         "Preview": (prompt_preview or '')[:120],
         "Duration(s)": duration if content_type=='video' else None,
         "Frames": frames if content_type=='video' else None,
@@ -52,7 +56,7 @@ if q:
     ql = q.lower()
     df = df[df.apply(lambda row: ql in str(row.File).lower() or ql in str(row.Preview).lower(), axis=1)]
 
-st.dataframe(df, use_container_width=True, height=500)
+st.dataframe(df.drop(columns=["Stored Path","Thumbnail"]) if not df.empty else df, use_container_width=True, height=500)
 st.caption(f"Showing {len(df)} record(s). Newest first.")
 
 if not df.empty:
@@ -62,5 +66,51 @@ if not df.empty:
         if not sel.empty:
             row = sel.iloc[0]
             st.markdown(f"**File:** {row.File}  |  **Type:** {row.Type}  |  **Created:** {row.Created}")
-            st.markdown(f"**Prompt Preview:** {row.Preview}")
-            st.caption("(Full prompt path not yet stored; future enhancement will link txt file)")
+            # Thumbnail
+            if row.Thumbnail and os.path.exists(row.Thumbnail):
+                st.image(row.Thumbnail, width=200)
+            # View/Download full prompt if exists
+            if row.get('Stored Path') and isinstance(row.get('Stored Path'), str):
+                st.caption(f"Original file path: {row['Stored Path']}")
+            # Edit prompt preview
+            new_preview = st.text_area("Edit Prompt Preview", value=row.Preview, height=150)
+            colA, colB, colC = st.columns(3)
+            with colA:
+                if st.button("Save Preview"):
+                    try:
+                        db.update_analysis_prompt_preview(int(row.ID), new_preview)
+                        st.success("Saved preview")
+                    except Exception as e:
+                        st.error(f"Failed to save: {e}")
+            with colB:
+                if st.button("Regenerate from File"):
+                    source_path = row.get('Stored Path')
+                    if source_path and os.path.exists(source_path):
+                        sys = ReverseEngineerSystem()
+                        with st.spinner("Regenerating analysis..."):
+                            res = sys.analyze_content(source_path, save_frames=True)
+                        if 'error' in res:
+                            st.error(res['error'])
+                        else:
+                            st.success("Regeneration complete")
+                            # Robust prompt extraction after regeneration
+                            def _extract_prompt(r: dict) -> str:
+                                ctype = (r.get('content_type') or '').lower()
+                                if ctype == 'video':
+                                    return r.get('comprehensive_video_prompt') or r.get('video_prompt') or ''
+                                p = r.get('suggested_prompt')
+                                if p:
+                                    return p
+                                ind = r.get('individual_analyses') or []
+                                for a in ind:
+                                    if a.get('analysis_type') == 'prompt_analysis' and a.get('raw_analysis'):
+                                        return a['raw_analysis']
+                                return r.get('comprehensive_analysis') or ''
+
+                            prompt = _extract_prompt(res)
+                            st.text_area("New Prompt", prompt, height=200)
+                    else:
+                        st.warning("Original file not available on disk.")
+            with colC:
+                if st.button("Open Prompt File"):
+                    st.info("If a full prompt file path is stored, opening is supported by your OS. (Manual step)")

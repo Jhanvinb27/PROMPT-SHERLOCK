@@ -16,6 +16,7 @@ import traceback
 from config import Config
 from utils import VideoProcessor, ImageProcessor, SceneDetector, AdvancedFrameSelector, EnhancedSceneDetector
 from ai_analyzer import AIAnalyzer, EnhancedPromptEngine
+from services.media_storage import generate_image_thumbnail, generate_video_thumbnail
 
 
 class ReverseEngineerSystem:
@@ -123,7 +124,14 @@ class ReverseEngineerSystem:
         }
         
         # Save enhanced results
-        self._save_analysis_result(result, Path(video_path).stem)
+        json_path, txt_path = self._save_analysis_result(result, Path(video_path).stem)
+        # Create thumbnail
+        thumb_path = generate_video_thumbnail(video_path)
+        result.update({
+            "saved_json_path": json_path,
+            "saved_txt_path": txt_path,
+            "thumbnail_path": thumb_path or ""
+        })
         
         print("✅ Enhanced video analysis completed successfully!")
         return result
@@ -170,7 +178,14 @@ class ReverseEngineerSystem:
         }
         
         # Save enhanced results
-        self._save_analysis_result(result, Path(image_path).stem)
+        json_path, txt_path = self._save_analysis_result(result, Path(image_path).stem)
+        # Create thumbnail
+        thumb_path = generate_image_thumbnail(image_path)
+        result.update({
+            "saved_json_path": json_path,
+            "saved_txt_path": txt_path,
+            "thumbnail_path": thumb_path or ""
+        })
         
         print("✅ Enhanced image analysis completed successfully!")
         return result
@@ -349,6 +364,8 @@ class ReverseEngineerSystem:
             print(f"📝 Formatted prompt saved to: {txt_filepath}")
         except Exception as e:
             print(f"Failed to save formatted text: {e}")
+        # Return saved paths for DB storage
+        return str(json_filepath), str(txt_filepath)
     
     def _format_result_for_text(self, result: Dict[str, Any]) -> str:
         """Format analysis result into clean, copy-pastable text"""
@@ -428,8 +445,11 @@ class ReverseEngineerSystem:
             lines.append("")
             
             # Main image generation prompt
-            main_prompt = result.get('suggested_prompt', 
-                                   result.get('comprehensive_video_prompt', ''))
+            main_prompt = (
+                result.get('suggested_prompt')
+                or result.get('comprehensive_analysis')
+                or result.get('comprehensive_video_prompt', '')
+            )
             
             if main_prompt:
                 lines.append("🖼️ IMAGE GENERATION PROMPT:")
