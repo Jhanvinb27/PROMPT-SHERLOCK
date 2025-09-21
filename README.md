@@ -17,7 +17,7 @@
 
 ---
 
-> New: Production-style multi‑page SaaS shell (auth, dashboard, usage history, pricing, admin, settings, legal, help, referrals) + onboarding tooltips + secure session persistence + fallback launcher.
+> New: Production-style multi‑page SaaS shell (auth, dashboard, usage history, pricing, admin, settings, legal, help, referrals) + onboarding tooltips + secure session persistence + streamlined launcher.
 
 ## 🎯 What is Prompt Detective?
 
@@ -82,16 +82,11 @@ GROQ_API_KEY=your_groq_api_key_here
 
 ### 🚀 Quick Start
 
-#### Launch (Recommended New UI)
+#### Launch (Modern Multi‑Page UI)
 ```bash
 streamlit run app_launcher.py
 ```
-The launcher routes to the new multi‑page interface and gracefully falls back to the legacy single page if a breaking error occurs.
-
-#### Direct Legacy Mode (Optional)
-```bash
-streamlit run streamlit_app.py
-```
+The launcher routes to the new multi‑page interface. The legacy single‑page UI is no longer exposed in runtime builds.
 
 #### Access
 1. Visit `http://localhost:8501`
@@ -176,8 +171,8 @@ Edit `config.py` for detailed customization:
 
 ```
 Prompt-Detective/
-├── app_launcher.py            # Unified entrypoint with graceful fallback
-├── streamlit_app.py           # Legacy single-page interface
+├── app_launcher.py            # Unified entrypoint for modern multi‑page UI
+├── streamlit_app.py           # Redirect-only stub (kept for local reference)
 ├── pages/                     # Multi-page SaaS UI (Home, Login, Signup, Dashboard, etc.)
 ├── components/                # Reusable UI (navigation, onboarding tooltips)
 ├── services/                  # auth_service, db layer, error utilities
@@ -222,7 +217,7 @@ Prompt-Detective/
 - Structured Terms of Service & Privacy Policy pages (replace with counsel text)
 - Help & FAQ page with contact form placeholder
 
-### Fallback Launcher
+### Launcher
 - `app_launcher.py` attempts modern UI → falls back to legacy if errors occur
 - Diagnostic expander reveals import/runtime issues for rapid recovery
 
@@ -293,7 +288,7 @@ with shallow depth of field, shot with Sony FX6 camera..."
 - Run image & video analysis → Appears in Usage History
 - Toggle tooltips off in Settings → Tooltips disappear
 - Exceed free quota (5) → Gating message & upgrade CTA
-- Force failure (rename a core import) → Launcher offers legacy fallback
+- Force failure (rename a core import) → Launcher shows diagnostics and retry (no legacy fallback)
 
 ## 🤝 Contributing
 

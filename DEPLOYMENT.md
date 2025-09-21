@@ -20,7 +20,7 @@ Ensure all the following files are in your repository root:
 1. Go to https://share.streamlit.io/
 2. Connect your GitHub repository
 3. Select the repository: `Prompt-Detective`
-4. Set main file path: `streamlit_app.py`
+4. Set main file path: `app_launcher.py`
 5. Set branch: `main`
 
 ### 3. Configure Secrets
@@ -56,7 +56,7 @@ If you still get OpenCV errors:
 ## File Structure
 ```
 your-repo/
-├── streamlit_app.py
+├── app_launcher.py
 ├── reverse_engineer.py
 ├── config.py
 ├── utils.py
