@@ -28,3 +28,5 @@ matplotlib>=3.7.0
 # System Requirements
 pathlib2>=2.3.7
 argparse>=1.4.0
+
+streamlit-cookies-manager

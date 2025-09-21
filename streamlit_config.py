@@ -5,6 +5,7 @@ import streamlit as st
 import os
 from pathlib import Path
 from datetime import datetime
+from services.admin_seed import ensure_admin_from_env
 
 # App configuration
 APP_CONFIG = {
@@ -34,7 +35,7 @@ def configure_page():
         layout=APP_CONFIG["layout"],
         initial_sidebar_state=APP_CONFIG["initial_sidebar_state"],
         menu_items={
-            'Get Help': 'https://github.com/your-repo',
+            'Get Help': 'mailto:tryreverseai@gmail.com',
             'Report a bug': 'https://github.com/your-repo/issues',
             'About': f"{APP_CONFIG['title']} - Extract prompts from AI-generated content"
         }
@@ -272,6 +273,12 @@ def get_file_info(uploaded_file):
 # Session state management
 def initialize_session_state():
     """Initialize session state variables"""
+    # Ensure admin user exists (idempotent). No UI exposure; logs only if debug desired.
+    try:
+        _ = ensure_admin_from_env()
+    except Exception:
+        # Do not block UI on seeding issues
+        pass
     default_states = {
         'analysis_results': [],
         'current_analysis': None,
