@@ -110,11 +110,19 @@ def process_analysis_job(job_id: int, file_path: str, content_type: str):
 def perform_actual_analysis(file_path: str, content_type: str) -> Dict[str, Any]:
     """Perform actual analysis using the reverse engineering system"""
     try:
+        # Handle case where file_path might be a tuple (file_url, public_id, temp_path)
+        if isinstance(file_path, tuple):
+            # Use temp_path (third element) for actual analysis
+            actual_path = file_path[2] if len(file_path) > 2 else str(file_path[0])
+            print(f"🔧 Using temp file path from tuple: {actual_path}")
+        else:
+            actual_path = file_path
+            
         if not REVERSE_ENGINEER_AVAILABLE:
             print("⚠️ Falling back to mock analysis - reverse engineering system not available")
-            return generate_mock_analysis(file_path, content_type)
+            return generate_mock_analysis(actual_path, content_type)
         
-        print(f"🚀 Starting actual reverse engineering analysis for: {file_path}")
+        print(f"🚀 Starting actual reverse engineering analysis for: {actual_path}")
         
         # Initialize the reverse engineering system
         re_system = ReverseEngineerSystem()
@@ -122,10 +130,10 @@ def perform_actual_analysis(file_path: str, content_type: str) -> Dict[str, Any]
         # Perform the actual analysis
         if content_type == "video":
             # Use enhanced video analysis
-            analysis_result = re_system._analyze_video_enhanced(file_path, save_frames=True)
+            analysis_result = re_system._analyze_video_enhanced(actual_path, save_frames=True)
         else:  # image
             # Use enhanced image analysis
-            analysis_result = re_system._analyze_image_enhanced(file_path)
+            analysis_result = re_system._analyze_image_enhanced(actual_path)
         
         print("✅ Actual analysis completed successfully")
         
@@ -138,7 +146,8 @@ def perform_actual_analysis(file_path: str, content_type: str) -> Dict[str, Any]
         print(f"❌ Error in actual analysis: {str(e)}")
         print(traceback.format_exc())
         # Fall back to mock analysis on error
-        return generate_mock_analysis(file_path, content_type)
+        actual_path = file_path[2] if isinstance(file_path, tuple) and len(file_path) > 2 else str(file_path)
+        return generate_mock_analysis(actual_path, content_type)
 
 def process_re_analysis_result(result: Dict[str, Any], content_type: str) -> Dict[str, Any]:
     """Process reverse engineering analysis result for API consumption"""
@@ -222,7 +231,14 @@ def process_re_analysis_result(result: Dict[str, Any], content_type: str) -> Dic
 
 def generate_mock_analysis(file_path: str, content_type: str) -> Dict[str, Any]:
     """Generate mock analysis results for testing"""
-    filename = Path(file_path).name
+    # Handle case where file_path might be a tuple (file_url, public_id, temp_path)
+    if isinstance(file_path, tuple):
+        # Use temp_path (third element) for filename extraction
+        actual_path = file_path[2] if len(file_path) > 2 else str(file_path[0])
+    else:
+        actual_path = file_path
+    
+    filename = Path(actual_path).name
     
     if content_type == "video":
         return {

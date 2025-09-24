@@ -54,14 +54,14 @@ async def upload_file(
         )
     
     try:
-        # Save uploaded file
-        file_path = await save_upload_file(file, current_user.id)
+        # Save uploaded file - returns (file_url, public_id, temp_path)
+        file_url, public_id, temp_path = await save_upload_file(file, current_user.id)
         
         # Create analysis job
         job = AnalysisJob(
             user_id=current_user.id,
             filename=file.filename,
-            file_path=file_path,
+            file_path=file_url,  # Store cloud URL in database
             file_size_bytes=file.size,
             content_type=content_type,
             status="pending"
@@ -90,7 +90,8 @@ async def upload_file(
         print(f"✅ Usage logged for user {current_user.id}: analyze action at {usage_log.timestamp}")
         
         # Queue background analysis AFTER usage logging
-        queue_analysis_job(job.id, file_path, content_type)
+        # Use temp_path for local analysis (actual file), file_url is stored in DB
+        queue_analysis_job(job.id, temp_path, content_type)
         
         return {
             "job_id": job.id,
