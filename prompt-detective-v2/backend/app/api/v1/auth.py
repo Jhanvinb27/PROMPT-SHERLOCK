@@ -1,0 +1,95 @@
+"""
+Authentication API endpoints
+"""
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from ...core.auth import (
+    UserCreate, UserLogin, TokenResponse, GoogleOAuthRequest,
+    PasswordResetRequest, PasswordResetConfirm,
+    signup_user, login_user, refresh_access_token,
+    request_password_reset, reset_password,
+    get_current_active_user
+)
+from ...database import get_db
+from ...models.user import User
+
+router = APIRouter(prefix="/auth", tags=["authentication"])
+
+@router.post("/signup", response_model=TokenResponse)
+async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
+    """Register a new user"""
+    return signup_user(db, user_data)
+
+@router.post("/login", response_model=TokenResponse)
+async def login(login_data: UserLogin, db: Session = Depends(get_db)):
+    """Login user with email and password"""
+    return login_user(db, login_data)
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token(
+    refresh_token: str,
+    db: Session = Depends(get_db)
+):
+    """Refresh access token using refresh token"""
+    return refresh_access_token(refresh_token, db)
+
+@router.post("/google/oauth")
+async def google_oauth(oauth_data: GoogleOAuthRequest, db: Session = Depends(get_db)):
+    """Handle Google OAuth callback"""
+    # TODO: Implement Google OAuth flow
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Google OAuth not yet implemented"
+    )
+
+@router.post("/password-reset/request")
+async def request_password_reset_endpoint(
+    reset_data: PasswordResetRequest,
+    db: Session = Depends(get_db)
+):
+    """Request password reset email"""
+    return await request_password_reset(db, reset_data.email)
+
+@router.post("/password-reset/confirm")
+async def reset_password_endpoint(
+    reset_data: PasswordResetConfirm,
+    db: Session = Depends(get_db)
+):
+    """Confirm password reset with token"""
+    return reset_password(db, reset_data.token, reset_data.new_password)
+
+@router.get("/me")
+async def get_current_user_info(current_user: User = Depends(get_current_active_user)):
+    """Get current user information"""
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "is_active": current_user.is_active,
+        "is_premium": current_user.subscription_tier in ["pro", "enterprise"],
+        "api_calls_limit": 150 if current_user.subscription_tier == "free" else 1000,
+        "api_calls_used": 0,  # TODO: Get from usage tracking
+        "subscription_tier": current_user.subscription_tier,
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else ""
+    }
+
+@router.post("/create-test-user")
+async def create_test_user(db: Session = Depends(get_db)):
+    """Create a test user for development (remove in production)"""
+    # Check if test user already exists
+    test_email = "test@example.com"
+    existing_user = db.query(User).filter(User.email == test_email).first()
+    
+    if existing_user:
+        return {"message": "Test user already exists", "email": test_email}
+    
+    # Create test user
+    test_user_data = UserCreate(
+        email=test_email,
+        password="testpassword123",
+        name="Test User"
+    )
+    
+    result = signup_user(db, test_user_data)
+    return {"message": "Test user created successfully", "email": test_email, "tokens": result}

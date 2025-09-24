@@ -1,0 +1,45 @@
+# FastAPI Backend Requirements
+# Core framework
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Database
+sqlalchemy
+alembic
+psycopg2-binary
+
+# Authentication & Security
+passlib[bcrypt]
+python-jose[cryptography]
+pyjwt
+
+# Background tasks
+redis
+rq
+
+# File handling & analysis (from existing codebase)
+pillow
+opencv-python-headless
+numpy
+scipy
+scikit-image
+scikit-learn
+imageio
+ffmpeg-python
+
+# AI/ML
+groq
+
+# Utilities
+python-dotenv
+pydantic[email]
+pydantic-settings
+requests
+aiofiles
+cloudinary
+
+# Development
+pytest
+pytest-asyncio
+httpx
