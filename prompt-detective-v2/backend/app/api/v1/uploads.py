@@ -1,5 +1,5 @@
 """
-File upload and job creation endpoints
+File upload and job creation endpoints - Cloud storage version
 """
 import os
 import uuid
@@ -11,7 +11,7 @@ from ...core.auth import get_current_active_user
 from ...database import get_db
 from ...models.user import User, AnalysisJob, UsageLog
 from ...services.analysis import queue_analysis_job
-from ...services.storage import save_upload_file
+from ...services.storage import save_upload_file, cleanup_temp_file, get_file_size
 from ...core.config import settings
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])

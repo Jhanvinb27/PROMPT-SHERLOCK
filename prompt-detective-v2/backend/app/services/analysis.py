@@ -5,23 +5,17 @@ Analysis service for processing uploaded files using the actual reverse enginee 
         job.result_data = result
         job.completed_at = datetime.now(timezone.utc)
         
-        # Generate thumbnail immediately after analysis
-        thumbnail_path = None
+        # Generate thumbnail using cloud storage
+        thumbnail_url = None
         try:
-            if job.content_type == "video":
-                from ..services.thumbnail import generate_video_thumbnail
-                thumbnail_path = generate_video_thumbnail(file_path)
-            else:
-                from ..services.thumbnail import generate_image_thumbnail
-                thumbnail_path = generate_image_thumbnail(file_path)
-            
-            if thumbnail_path:
-                # Store thumbnail path in result data
-                result["thumbnail_path"] = thumbnail_path
+            from .cloud_storage import generate_thumbnail_url
+            if result.get("cloud_id"):
+                thumbnail_url = generate_thumbnail_url(result["cloud_id"], job.content_type)
+                result["thumbnail_url"] = thumbnail_url
                 job.result_data = result
-                print(f"✅ Generated thumbnail during analysis: {thumbnail_path}")
+                print(f"✅ Generated cloud thumbnail: {thumbnail_url}")
         except Exception as e:
-            print(f"❌ Failed to generate thumbnail during analysis: {e}")
+            print(f"❌ Failed to generate cloud thumbnail: {e}")
         
         # Calculate processing time
         processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
