@@ -1,4 +1,4 @@
-# FastAPI Backend Requirements
+# FastAPI Backend Requirements - Simplified for free tier
 # Core framework
 fastapi
 uvicorn[standard]
@@ -13,10 +13,6 @@ psycopg2-binary
 passlib[bcrypt]
 python-jose[cryptography]
 pyjwt
-
-# Background tasks
-redis
-rq
 
 # File handling & analysis (from existing codebase)
 pillow

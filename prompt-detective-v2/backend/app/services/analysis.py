@@ -46,30 +46,10 @@ except ImportError as e:
     REVERSE_ENGINEER_AVAILABLE = False
 
 def queue_analysis_job(job_id: int, file_path: str, content_type: str):
-    """Queue analysis job for background processing"""
-    try:
-        from rq import Queue
-        from redis import Redis
-        
-        redis_conn = Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
-        queue = Queue("prompt-detective-queue", connection=redis_conn)
-        
-        # Enqueue the job
-        queue.enqueue(
-            process_analysis_job,
-            job_id,
-            file_path,
-            content_type,
-            timeout=3600  # 1 hour timeout
-        )
-        
-    except ImportError:
-        # Fallback: process synchronously if Redis/RQ not available
-        print("Warning: Redis/RQ not available, processing synchronously")
-        process_analysis_job(job_id, file_path, content_type)
-    except Exception as e:
-        print(f"Warning: Could not queue job, processing synchronously: {e}")
-        process_analysis_job(job_id, file_path, content_type)
+    """Queue analysis job for processing - Simplified without Redis"""
+    # Process synchronously in free tier
+    print("Processing analysis job synchronously...")
+    process_analysis_job(job_id, file_path, content_type)
 
 def process_analysis_job(job_id: int, file_path: str, content_type: str):
     """Process analysis job in background worker"""
