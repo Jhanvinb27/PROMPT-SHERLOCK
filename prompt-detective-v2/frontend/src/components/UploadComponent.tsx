@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, File, Video, Image, X, Download, CheckCircle, AlertCircle } from 'lucide-react';
-import { cn } from '../lib/utils';
 import { useAuth } from '../hooks/useAuth';
 import { useUpload } from '../hooks/useUpload';
 import { ProgressBar } from './ProgressBar';
@@ -216,12 +215,11 @@ export const UploadComponent: React.FC<UploadComponentProps> = ({
       {/* Dropzone */}
       <div
         {...getRootProps()}
-        className={cn(
-          "border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors",
+        className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
           isDragActive 
             ? "border-blue-500 bg-blue-50" 
             : "border-gray-300 hover:border-gray-400"
-        )}
+        }`}
       >
         <input {...getInputProps()} />
         <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
