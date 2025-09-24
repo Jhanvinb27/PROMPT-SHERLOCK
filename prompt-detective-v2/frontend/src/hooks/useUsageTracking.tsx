@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { api } from '../services/api';
 
 interface UsageData {
   daily_usage: number;
@@ -42,20 +43,8 @@ export const useUsageTracking = (): UsageHook => {
     }
 
     try {
-      const response = await fetch('/api/v1/usage/daily', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUsageData(data);
-      } else {
-        console.error('Failed to fetch usage data');
-        setUsageData(null);
-      }
+      const response = await api.get('/usage/daily');
+      setUsageData(response.data);
     } catch (error) {
       console.error('Error fetching usage data:', error);
       setUsageData(null);

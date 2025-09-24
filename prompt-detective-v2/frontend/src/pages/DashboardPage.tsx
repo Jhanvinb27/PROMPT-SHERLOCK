@@ -343,7 +343,7 @@ const DashboardPage: React.FC = () => {
                               job.status === 'failed' ? 'bg-red-100 text-red-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
-                              {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
+                              {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1) : 'Unknown'}
                             </span>
                           </div>
                         </div>
