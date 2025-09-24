@@ -23,9 +23,11 @@
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@/lib/*": ["./src/lib/*"],
+      "@/components/*": ["./src/components/*"]
     }
   },
-  "include": ["src", "vite-env.d.ts"],
+  "include": ["src/**/*", "vite-env.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

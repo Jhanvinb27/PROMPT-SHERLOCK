@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, File, Video, Image, X, Download, CheckCircle, AlertCircle } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 import { useAuth } from '../hooks/useAuth';
 import { useUpload } from '../hooks/useUpload';
 import { ProgressBar } from './ProgressBar';
