@@ -1,58 +1,142 @@
-"""
-Analysis service for processing uploaded files using the actual reverse enginee        # Analysis successful
-        job.status = "completed"
-        job.progress = 100
-        job.result_data = result
-        job.completed_at = datetime.now(timezone.utc)
-        
-        # Generate thumbnail using cloud storage
-        thumbnail_url = None
-        try:
-            from .cloud_storage import generate_thumbnail_url
-            if result.get("cloud_id"):
-                thumbnail_url = generate_thumbnail_url(result["cloud_id"], job.content_type)
-                result["thumbnail_url"] = thumbnail_url
-                job.result_data = result
-                print(f"✅ Generated cloud thumbnail: {thumbnail_url}")
-        except Exception as e:
-            print(f"❌ Failed to generate cloud thumbnail: {e}")
-        
-        # Calculate processing time
-        processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
-        job.processing_time_seconds = int(processing_time)em
-"""
+"""Analysis service for processing uploaded files using the reverse engineering stack."""
+
 import os
 import sys
 import traceback
 from datetime import datetime, timezone
-from typing import Dict, Any
 from pathlib import Path
+from typing import Any, Dict, Mapping, Optional, Tuple, Union
+from urllib.parse import urlparse
 
 # Add the parent directory to path to import the reverse engineering modules
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from ..database import SessionLocal
 from ..models.user import AnalysisJob
+from .storage import cleanup_temp_file
+
+
+FileReference = Union[
+    str,
+    Tuple[Optional[str], Optional[str], Optional[str]],
+    Mapping[str, Any],
+]
+
+SERVICE_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = SERVICE_DIR.parent.parent
+BACKEND_THUMBNAILS_DIR = BACKEND_DIR / "thumbnails"
+
+
+def _is_http_url(value: Optional[str]) -> bool:
+    """Return True if the provided string looks like an HTTP(S) URL."""
+    if not value:
+        return False
+    return str(value).lower().startswith(("http://", "https://"))
+
+
+def _normalize_file_reference(file_reference: FileReference) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Extract local, cloud, and temporary path metadata from the provided reference."""
+
+    cloud_url: Optional[str] = None
+    cloud_id: Optional[str] = None
+    temp_path: Optional[str] = None
+    explicit_path: Optional[str] = None
+
+    if isinstance(file_reference, tuple):
+        cloud_url = file_reference[0] if len(file_reference) > 0 else None
+        cloud_id = file_reference[1] if len(file_reference) > 1 else None
+        temp_path = file_reference[2] if len(file_reference) > 2 else None
+    elif isinstance(file_reference, Mapping):
+        cloud_url = file_reference.get("cloud_url") or file_reference.get("file_url")
+        cloud_id = file_reference.get("cloud_id") or file_reference.get("public_id")
+        temp_path = file_reference.get("temp_path") or file_reference.get("local_path")
+        explicit_path = file_reference.get("actual_path")
+    else:
+        explicit_path = str(file_reference) if file_reference is not None else None
+
+    actual_path = temp_path or explicit_path
+    if not actual_path and cloud_url:
+        actual_path = cloud_url
+
+    return actual_path, cloud_url, cloud_id, temp_path
+
+
+def _resolve_thumbnail_path(path_str: Optional[str]) -> Optional[Path]:
+    """Return an absolute Path to the thumbnail if it exists."""
+
+    if not path_str or _is_http_url(path_str):
+        return None
+
+    candidate = Path(path_str)
+    if candidate.is_absolute() and candidate.exists():
+        return candidate
+
+    joined = (BACKEND_DIR / candidate).resolve()
+    if joined.exists():
+        return joined
+
+    thumb_candidate = (BACKEND_THUMBNAILS_DIR / candidate.name).resolve()
+    if thumb_candidate.exists():
+        return thumb_candidate
+
+    return None
+
+
+def _build_static_thumbnail_url(filename: str) -> str:
+    """Convert a thumbnail filename to the public static URL."""
+
+    return f"/static/thumbnails/{filename}"
+
+
+def _derive_cloudinary_public_id(file_url: Optional[str]) -> Optional[str]:
+    """Attempt to extract the Cloudinary public_id from a served file URL."""
+
+    if not file_url or not _is_http_url(file_url):
+        return None
+
+    parsed = urlparse(file_url)
+    path = parsed.path or ""
+    if "/upload/" not in path:
+        return None
+
+    public_part = path.split("/upload/", 1)[1]
+    if public_part.startswith("/"):
+        public_part = public_part[1:]
+
+    # Drop version prefix (e.g., v1724971234)
+    segments = [segment for segment in public_part.split("/") if segment]
+    if segments and segments[0].startswith("v") and segments[0][1:].isdigit():
+        segments = segments[1:]
+
+    if not segments:
+        return None
+
+    public_part = "/".join(segments)
+    if "?" in public_part:
+        public_part = public_part.split("?", 1)[0]
+    if "." in public_part:
+        public_part = public_part.rsplit(".", 1)[0]
+
+    return public_part or None
 
 # Import the actual reverse engineering system
 try:
     from reverse_engineer import ReverseEngineerSystem
-    from config import Config as REConfig
-    from ai_analyzer import AIAnalyzer
     REVERSE_ENGINEER_AVAILABLE = True
     print("✅ Reverse engineering system imported successfully")
 except ImportError as e:
     print(f"⚠️ Warning: Could not import reverse engineering system: {e}")
     REVERSE_ENGINEER_AVAILABLE = False
 
-def queue_analysis_job(job_id: int, file_path: str, content_type: str):
+def queue_analysis_job(job_id: int, file_reference: FileReference, content_type: str):
     """Queue analysis job for processing - Simplified without Redis"""
     # Process synchronously in free tier
     print("Processing analysis job synchronously...")
-    process_analysis_job(job_id, file_path, content_type)
+    process_analysis_job(job_id, file_reference, content_type)
 
-def process_analysis_job(job_id: int, file_path: str, content_type: str):
+def process_analysis_job(job_id: int, file_reference: FileReference, content_type: str):
     """Process analysis job in background worker"""
+    actual_path, cloud_url, cloud_id, temp_path = _normalize_file_reference(file_reference)
     db = SessionLocal()
     
     try:
@@ -80,7 +164,32 @@ def process_analysis_job(job_id: int, file_path: str, content_type: str):
         
         # Generate analysis result using actual reverse engineering system
         start_time = datetime.now(timezone.utc)
-        result = perform_actual_analysis(file_path, content_type)
+        result = perform_actual_analysis(file_reference, content_type)
+        if not isinstance(result, dict):
+            result = {"raw_analysis": result or {}}
+
+        if cloud_url and not result.get("cloud_file_url"):
+            result["cloud_file_url"] = cloud_url
+        if cloud_id and not result.get("cloud_id"):
+            result["cloud_id"] = cloud_id
+        if temp_path and not result.get("temp_file_path"):
+            result["temp_file_path"] = temp_path
+
+        thumb_path = result.get("thumbnail_path")
+        if thumb_path and not _is_http_url(str(thumb_path)):
+            result["thumbnail_path"] = str(Path(str(thumb_path)).resolve())
+
+        thumbnail_url = result.get("thumbnail_url")
+        if cloud_id and (not thumbnail_url or not _is_http_url(str(thumbnail_url))):
+            try:
+                from .cloud_storage import generate_thumbnail_url
+
+                cloud_thumbnail = generate_thumbnail_url(cloud_id, job.content_type)
+                if cloud_thumbnail:
+                    result["thumbnail_url"] = cloud_thumbnail
+                    print(f"✅ Generated cloud thumbnail: {cloud_thumbnail}")
+            except Exception as thumb_err:
+                print(f"❌ Failed to generate cloud thumbnail: {thumb_err}")
         
         # Analysis successful
         job.status = "completed"
@@ -106,21 +215,25 @@ def process_analysis_job(job_id: int, file_path: str, content_type: str):
         
     finally:
         db.close()
+        if temp_path:
+            cleanup_temp_file(temp_path)
 
-def perform_actual_analysis(file_path: str, content_type: str) -> Dict[str, Any]:
+
+def perform_actual_analysis(file_reference: FileReference, content_type: str) -> Dict[str, Any]:
     """Perform actual analysis using the reverse engineering system"""
+    actual_path, cloud_url, cloud_id, temp_path = _normalize_file_reference(file_reference)
     try:
-        # Handle case where file_path might be a tuple (file_url, public_id, temp_path)
-        if isinstance(file_path, tuple):
-            # Use temp_path (third element) for actual analysis
-            actual_path = file_path[2] if len(file_path) > 2 else str(file_path[0])
-            print(f"🔧 Using temp file path from tuple: {actual_path}")
-        else:
-            actual_path = file_path
-            
+        if actual_path:
+            print(f"🔧 Using analysis source path: {actual_path}")
+
+        if not actual_path or _is_http_url(actual_path) or not os.path.exists(actual_path):
+            missing_msg = actual_path or "<none>"
+            print(f"⚠️ Local analysis path unavailable: {missing_msg}. Falling back to mock analysis.")
+            return generate_mock_analysis(actual_path or "", content_type, cloud_url, cloud_id)
+
         if not REVERSE_ENGINEER_AVAILABLE:
             print("⚠️ Falling back to mock analysis - reverse engineering system not available")
-            return generate_mock_analysis(actual_path, content_type)
+            return generate_mock_analysis(actual_path, content_type, cloud_url, cloud_id)
         
         print(f"🚀 Starting actual reverse engineering analysis for: {actual_path}")
         
@@ -139,6 +252,16 @@ def perform_actual_analysis(file_path: str, content_type: str) -> Dict[str, Any]
         
         # Process and format the result for the API
         processed_result = process_re_analysis_result(analysis_result, content_type)
+        if cloud_url:
+            processed_result.setdefault("cloud_file_url", cloud_url)
+        if cloud_id:
+            processed_result.setdefault("cloud_id", cloud_id)
+        if temp_path:
+            processed_result.setdefault("temp_file_path", temp_path)
+
+        thumb_path = processed_result.get("thumbnail_path")
+        if thumb_path and not _is_http_url(str(thumb_path)):
+            processed_result["thumbnail_path"] = str(Path(str(thumb_path)).resolve())
         
         return processed_result
         
@@ -146,8 +269,8 @@ def perform_actual_analysis(file_path: str, content_type: str) -> Dict[str, Any]
         print(f"❌ Error in actual analysis: {str(e)}")
         print(traceback.format_exc())
         # Fall back to mock analysis on error
-        actual_path = file_path[2] if isinstance(file_path, tuple) and len(file_path) > 2 else str(file_path)
-        return generate_mock_analysis(actual_path, content_type)
+        fallback_path = actual_path or ""
+        return generate_mock_analysis(fallback_path, content_type, cloud_url, cloud_id)
 
 def process_re_analysis_result(result: Dict[str, Any], content_type: str) -> Dict[str, Any]:
     """Process reverse engineering analysis result for API consumption"""
@@ -229,7 +352,12 @@ def process_re_analysis_result(result: Dict[str, Any], content_type: str) -> Dic
             "raw_result": result
         }
 
-def generate_mock_analysis(file_path: str, content_type: str) -> Dict[str, Any]:
+def generate_mock_analysis(
+    file_path: str,
+    content_type: str,
+    cloud_url: Optional[str] = None,
+    cloud_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """Generate mock analysis results for testing"""
     # Handle case where file_path might be a tuple (file_url, public_id, temp_path)
     if isinstance(file_path, tuple):
@@ -241,7 +369,7 @@ def generate_mock_analysis(file_path: str, content_type: str) -> Dict[str, Any]:
     filename = Path(actual_path).name
     
     if content_type == "video":
-        return {
+        result = {
             "comprehensive_video_prompt": f"A detailed video analysis for {filename}. This video appears to be AI-generated content with vibrant colors, smooth transitions, and artistic composition. The style suggests it was created using prompts like: 'high quality, cinematic lighting, professional cinematography, detailed environment, atmospheric effects, 4K resolution, smooth camera movements'.",
             "video_info": {
                 "duration": 30.5,
@@ -262,10 +390,11 @@ def generate_mock_analysis(file_path: str, content_type: str) -> Dict[str, Any]:
                 "high quality, detailed environment",
                 "atmospheric effects, smooth transitions",
                 "vibrant colors, artistic composition"
-            ]
+            ],
+            "thumbnail_path": ""
         }
     else:  # image
-        return {
+        result = {
             "suggested_prompt": f"Detailed image analysis for {filename}. This appears to be an AI-generated image with characteristics suggesting prompts like: 'high resolution, detailed artwork, professional photography, studio lighting, vibrant colors, sharp focus, artistic composition, masterpiece quality'.",
             "comprehensive_analysis": f"This image shows sophisticated AI generation techniques with attention to detail, color harmony, and compositional balance. Likely created with advanced diffusion models using carefully crafted prompts.",
             "image_info": {
@@ -283,8 +412,16 @@ def generate_mock_analysis(file_path: str, content_type: str) -> Dict[str, Any]:
                 "professional photography, studio lighting",
                 "vibrant colors, sharp focus",
                 "artistic composition, masterpiece quality"
-            ]
+            ],
+            "thumbnail_path": ""
         }
+
+    if cloud_url:
+        result["cloud_file_url"] = cloud_url
+    if cloud_id:
+        result["cloud_id"] = cloud_id
+
+    return result
 
 def extract_key_results(result: Dict[str, Any], content_type: str) -> Dict[str, Any]:
     """Extract key information from analysis results"""
@@ -339,7 +476,12 @@ def extract_key_results(result: Dict[str, Any], content_type: str) -> Dict[str, 
             )
         
         # Extract file paths (from actual analysis)
-        extracted["file_paths"] = result.get("file_paths", {})
+        file_paths = dict(result.get("file_paths") or {})
+        if result.get("thumbnail_path") and "thumbnail_path" not in file_paths:
+            file_paths["thumbnail_path"] = result.get("thumbnail_path")
+        if result.get("thumbnail_url") and "thumbnail_url" not in file_paths and _is_http_url(result.get("thumbnail_url")):
+            file_paths["thumbnail_url"] = result.get("thumbnail_url")
+        extracted["file_paths"] = file_paths
         
         # Create a preview of the prompt (first 300 characters for better preview)
         if extracted["main_prompt"]:
@@ -384,65 +526,78 @@ def get_analysis_summary(job: AnalysisJob) -> Dict[str, Any]:
     if job.status == "completed" and result:
         # Extract key results using the updated function
         extracted = extract_key_results(result, job.content_type)
+
+        cloud_id = result.get("cloud_id")
+        if not cloud_id:
+            cloud_candidates = [
+                result.get("cloud_file_url"),
+                result.get("file_url"),
+                job.file_path,
+            ]
+            for candidate in cloud_candidates:
+                derived = _derive_cloudinary_public_id(candidate)
+                if derived:
+                    cloud_id = derived
+                    result["cloud_id"] = derived
+                    break
         
-        # Generate thumbnail URL if thumbnail exists
-        thumbnail_url = None
-        thumbnail_path = result.get("thumbnail_path") or extracted.get("file_paths", {}).get("thumbnail_path")
-        
-        if thumbnail_path and os.path.exists(thumbnail_path):
-            # Convert absolute thumbnail path to relative filename
-            thumbnail_filename = os.path.basename(thumbnail_path)
-            if thumbnail_filename:
-                thumbnail_url = f"/static/thumbnails/{thumbnail_filename}"
-                print(f"✅ Thumbnail URL generated: {thumbnail_url} from path: {thumbnail_path}")
+        # Generate thumbnail URL if available from cloud or local storage
+        thumbnail_url = result.get("thumbnail_url") if _is_http_url(result.get("thumbnail_url")) else None
+        thumbnail_path_sources = [
+            result.get("thumbnail_path"),
+            extracted.get("file_paths", {}).get("thumbnail_path") if extracted.get("file_paths") else None,
+        ]
+        thumbnail_path = next((path for path in thumbnail_path_sources if path), None)
+        resolved_local = _resolve_thumbnail_path(thumbnail_path)
+
+        if thumbnail_url:
+            print(f"✅ Using cloud thumbnail URL: {thumbnail_url}")
+            if resolved_local:
+                thumbnail_path = str(resolved_local)
+        elif resolved_local:
+            thumbnail_path = str(resolved_local)
+            thumbnail_url = _build_static_thumbnail_url(resolved_local.name)
+            print(f"✅ Thumbnail URL generated: {thumbnail_url} from path: {thumbnail_path}")
         else:
-            print(f"⚠️ No valid thumbnail found - path: {thumbnail_path}")
-            
-            # Try to find thumbnail by job filename in thumbnails directory
+            job_basename = Path(job.filename).stem if job.filename else None
+            fallback_local = _resolve_thumbnail_path(f"{job_basename}_thumb.jpg") if job_basename else None
+            if fallback_local:
+                thumbnail_path = str(fallback_local)
+                thumbnail_url = _build_static_thumbnail_url(fallback_local.name)
+                print(f"✅ Found existing thumbnail by filename: {thumbnail_url}")
+
+        if not thumbnail_url and cloud_id:
             try:
-                job_basename = os.path.splitext(job.filename)[0]
-                potential_thumbnail = f"{job_basename}_thumb.jpg"
-                thumbnail_dir = os.path.join(os.path.dirname(__file__), "..", "thumbnails")
-                potential_path = os.path.join(thumbnail_dir, potential_thumbnail)
-                
-                if os.path.exists(potential_path):
-                    thumbnail_url = f"/static/thumbnails/{potential_thumbnail}"
-                    print(f"✅ Found existing thumbnail by filename: {thumbnail_url}")
-                else:
-                    # Try to generate thumbnail if source file exists
-                    if os.path.exists(job.file_path):
-                        try:
-                            if job.content_type == "video":
-                                from ..services.thumbnail import generate_video_thumbnail
-                                thumbnail_path = generate_video_thumbnail(job.file_path)
-                            else:
-                                from ..services.thumbnail import generate_image_thumbnail
-                                thumbnail_path = generate_image_thumbnail(job.file_path)
-                            
-                            if thumbnail_path and os.path.exists(thumbnail_path):
-                                thumbnail_filename = os.path.basename(thumbnail_path)
-                                thumbnail_url = f"/static/thumbnails/{thumbnail_filename}"
-                                print(f"✅ Generated new thumbnail: {thumbnail_url}")
-                        except Exception as e:
-                            print(f"❌ Failed to generate thumbnail: {e}")
+                from .cloud_storage import generate_thumbnail_url
+
+                cloud_thumbnail = generate_thumbnail_url(cloud_id, job.content_type)
+                if cloud_thumbnail:
+                    thumbnail_url = cloud_thumbnail
+                    print(f"✅ Generated on-demand cloud thumbnail: {thumbnail_url}")
             except Exception as e:
-                print(f"❌ Error finding thumbnail: {e}")
-                # Try to generate thumbnail if source file exists
-                if os.path.exists(job.file_path):
-                    try:
-                        if job.content_type == "video":
-                            from ..services.thumbnail import generate_video_thumbnail
-                            thumbnail_path = generate_video_thumbnail(job.file_path)
-                        else:
-                            from ..services.thumbnail import generate_image_thumbnail
-                            thumbnail_path = generate_image_thumbnail(job.file_path)
-                        
-                        if thumbnail_path and os.path.exists(thumbnail_path):
-                            thumbnail_filename = os.path.basename(thumbnail_path)
-                            thumbnail_url = f"/static/thumbnails/{thumbnail_filename}"
-                            print(f"✅ Generated new thumbnail: {thumbnail_url}")
-                    except Exception as e:
-                        print(f"❌ Failed to generate thumbnail: {e}")
+                print(f"❌ Failed to generate cloud thumbnail in summary: {e}")
+
+        if not thumbnail_url and job.file_path and not _is_http_url(job.file_path) and os.path.exists(job.file_path):
+            try:
+                if job.content_type == "video":
+                    from ..services.thumbnail import generate_video_thumbnail
+
+                    thumbnail_path_candidate = generate_video_thumbnail(job.file_path)
+                else:
+                    from ..services.thumbnail import generate_image_thumbnail
+
+                    thumbnail_path_candidate = generate_image_thumbnail(job.file_path)
+
+                resolved_generated = _resolve_thumbnail_path(thumbnail_path_candidate)
+                if resolved_generated:
+                    thumbnail_path = str(resolved_generated)
+                    thumbnail_url = _build_static_thumbnail_url(resolved_generated.name)
+                    print(f"✅ Generated new thumbnail: {thumbnail_url}")
+            except Exception as e:
+                print(f"❌ Failed to generate thumbnail from local source: {e}")
+
+        if not thumbnail_url:
+            print(f"⚠️ No valid thumbnail available for job {job.id} - last tried path: {thumbnail_path}")
         
         summary.update({
             "summary": extracted.get("summary", {}),
@@ -453,7 +608,9 @@ def get_analysis_summary(job: AnalysisJob) -> Dict[str, Any]:
             "analysis_quality": extracted.get("analysis_quality", {}),
             "enhancement_features": result.get("enhancement_features", []),
             "thumbnail_url": thumbnail_url,
-            "thumbnail_path": thumbnail_path  # Also include the path for debugging
+            "thumbnail_path": thumbnail_path,  # Also include the path for debugging
+            "cloud_id": cloud_id,
+            "cloud_file_url": result.get("cloud_file_url") or job.file_path,
         })
         
         # Add extraction error info if present
@@ -518,6 +675,11 @@ def get_downloadable_content(job: AnalysisJob) -> Dict[str, Any]:
         }
     
     # Add file paths for additional downloads
-    content["file_paths"] = extracted.get("file_paths", {})
+    file_paths = dict(extracted.get("file_paths") or {})
+    if result.get("thumbnail_url") and "thumbnail_url" not in file_paths and _is_http_url(result.get("thumbnail_url")):
+        file_paths["thumbnail_url"] = result["thumbnail_url"]
+    if result.get("thumbnail_path") and "thumbnail_path" not in file_paths:
+        file_paths["thumbnail_path"] = result["thumbnail_path"]
+    content["file_paths"] = file_paths
     
     return content
