@@ -139,6 +139,13 @@ def process_analysis_job(job_id: int, file_reference: FileReference, content_typ
     actual_path, cloud_url, cloud_id, temp_path = _normalize_file_reference(file_reference)
     db = SessionLocal()
     
+    def update_progress(progress: int, commit: bool = True):
+        """Helper to update job progress"""
+        job.progress = progress
+        if commit:
+            db.commit()
+            print(f"📊 Job {job_id} progress: {progress}%")
+    
     try:
         # Get job from database
         job = db.query(AnalysisJob).filter(AnalysisJob.id == job_id).first()
@@ -146,25 +153,28 @@ def process_analysis_job(job_id: int, file_reference: FileReference, content_typ
             print(f"Job {job_id} not found")
             return
         
-        # Update status to processing
+        # Stage 1: File Upload Complete (0-10%)
         job.status = "processing"
-        job.progress = 10
-        db.commit()
+        update_progress(10)
         
-        # Simulate analysis processing
+        # Stage 2: Content Analysis Starting (10-20%)
+        update_progress(15)
         import time
-        time.sleep(1)  # Simulate processing time
+        time.sleep(0.5)  # Brief pause for UI sync
+        update_progress(20)
         
-        job.progress = 50
-        db.commit()
-        time.sleep(1)
+        # Stage 3: Analyzing file structure (20-40%)
+        update_progress(25)
+        time.sleep(0.5)
+        update_progress(35)
         
-        job.progress = 80
-        db.commit()
+        # Stage 4: AI Processing Starting (40-70%)
+        update_progress(45)
         
         # Generate analysis result using actual reverse engineering system
         start_time = datetime.now(timezone.utc)
-        result = perform_actual_analysis(file_reference, content_type)
+        result = perform_actual_analysis(file_reference, content_type, 
+                                        lambda p: update_progress(45 + int(p * 25)))
         if not isinstance(result, dict):
             result = {"raw_analysis": result or {}}
 
@@ -179,6 +189,11 @@ def process_analysis_job(job_id: int, file_reference: FileReference, content_typ
         if thumb_path and not _is_http_url(str(thumb_path)):
             result["thumbnail_path"] = str(Path(str(thumb_path)).resolve())
 
+        # Stage 5: Prompt Generation (70-90%)
+        update_progress(75)
+        time.sleep(0.3)
+        update_progress(85)
+        
         thumbnail_url = result.get("thumbnail_url")
         if cloud_id and (not thumbnail_url or not _is_http_url(str(thumbnail_url))):
             try:
@@ -191,9 +206,14 @@ def process_analysis_job(job_id: int, file_reference: FileReference, content_typ
             except Exception as thumb_err:
                 print(f"❌ Failed to generate cloud thumbnail: {thumb_err}")
         
+        # Stage 6: Finalization (90-100%)
+        update_progress(92)
+        time.sleep(0.2)
+        update_progress(95)
+        
         # Analysis successful
         job.status = "completed"
-        job.progress = 100
+        update_progress(100)
         job.result_data = result
         job.completed_at = datetime.now(timezone.utc)
         
@@ -219,9 +239,16 @@ def process_analysis_job(job_id: int, file_reference: FileReference, content_typ
             cleanup_temp_file(temp_path)
 
 
-def perform_actual_analysis(file_reference: FileReference, content_type: str) -> Dict[str, Any]:
+def perform_actual_analysis(file_reference: FileReference, content_type: str, 
+                          progress_callback=None) -> Dict[str, Any]:
     """Perform actual analysis using the reverse engineering system"""
     actual_path, cloud_url, cloud_id, temp_path = _normalize_file_reference(file_reference)
+    
+    def report_progress(percent: float):
+        """Report progress if callback provided"""
+        if progress_callback:
+            progress_callback(percent)
+    
     try:
         if actual_path:
             print(f"🔧 Using analysis source path: {actual_path}")
@@ -238,9 +265,11 @@ def perform_actual_analysis(file_reference: FileReference, content_type: str) ->
         print(f"🚀 Starting actual reverse engineering analysis for: {actual_path}")
         
         # Initialize the reverse engineering system
+        report_progress(0.1)  # 10% of AI processing phase
         re_system = ReverseEngineerSystem()
         
         # Perform the actual analysis
+        report_progress(0.3)  # 30% - starting analysis
         if content_type == "video":
             # Use enhanced video analysis
             analysis_result = re_system._analyze_video_enhanced(actual_path, save_frames=True)
@@ -248,6 +277,7 @@ def perform_actual_analysis(file_reference: FileReference, content_type: str) ->
             # Use enhanced image analysis
             analysis_result = re_system._analyze_image_enhanced(actual_path)
         
+        report_progress(0.8)  # 80% - analysis complete
         print("✅ Actual analysis completed successfully")
         
         # Process and format the result for the API
@@ -263,6 +293,7 @@ def perform_actual_analysis(file_reference: FileReference, content_type: str) ->
         if thumb_path and not _is_http_url(str(thumb_path)):
             processed_result["thumbnail_path"] = str(Path(str(thumb_path)).resolve())
         
+        report_progress(1.0)  # 100% of AI processing phase
         return processed_result
         
     except Exception as e:

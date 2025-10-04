@@ -56,31 +56,25 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
         
         if (response.data) {
           const data = response.data;
-          const currentProgress = data.progress || 0;
-          
-          console.log(`📊 Job ${jobId} - Status: ${data.status}, Progress: ${currentProgress}%`);
-          
           setJobStatus({
             status: data.status,
-            progress: currentProgress,
+            progress: data.progress || 0,
             error_message: data.error_message
           });
 
-          // Update stage description based on EXACT backend progress ranges
+          // Update stage description based on progress and status
           if (data.status === 'pending') {
             setStage('Queuing for processing...');
           } else if (data.status === 'processing') {
-            if (currentProgress <= 10) {
-              setStage('File uploaded successfully');
-            } else if (currentProgress <= 20) {
-              setStage('Starting content analysis...');
-            } else if (currentProgress <= 40) {
-              setStage(contentType?.startsWith('video') ? 'Extracting key frames from video...' : 'Analyzing image structure...');
-            } else if (currentProgress <= 70) {
-              setStage('Running AI processing and analysis...');
-            } else if (currentProgress <= 90) {
-              setStage('Generating AI prompts...');
-            } else if (currentProgress < 100) {
+            if (data.progress < 20) {
+              setStage('Analyzing file structure...');
+            } else if (data.progress < 40) {
+              setStage(contentType?.startsWith('video') ? 'Extracting key frames...' : 'Processing image...');
+            } else if (data.progress < 60) {
+              setStage('Running AI analysis...');
+            } else if (data.progress < 80) {
+              setStage('Generating prompts...');
+            } else {
               setStage('Finalizing results...');
             }
           } else if (data.status === 'completed') {
@@ -88,7 +82,7 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
             setTimeout(() => {
               onComplete();
               onClose();
-            }, 1500); // Shorter delay for better UX
+            }, 2000);
           } else if (data.status === 'failed') {
             setStage('Analysis failed');
           }
@@ -97,9 +91,9 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
         console.error('Failed to poll job status:', error);
         
         // Stop polling after too many failed attempts
-        if (pollCount > 15) {
+        if (pollCount > 10) {
           setJobStatus(prev => ({ ...prev, status: 'failed' }));
-          setStage('Connection lost - please refresh and try again');
+          setStage('Too many failed attempts - please refresh and try again');
           return;
         }
         
@@ -108,18 +102,13 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
           const axiosError = error as any;
           if (axiosError.response?.status === 401) {
             setJobStatus(prev => ({ ...prev, status: 'failed' }));
-            setStage('Session expired - please refresh and login again');
+            setStage('Authentication error - please refresh and try again');
           } else if (axiosError.response?.status === 404) {
-            // Job might not be created yet, keep trying for a bit
-            if (pollCount <= 5) {
-              setStage('Connecting to analysis service...');
-            } else {
-              setJobStatus(prev => ({ ...prev, status: 'failed' }));
-              setStage('Job not found - it may have been deleted');
-            }
+            setJobStatus(prev => ({ ...prev, status: 'failed' }));
+            setStage('Job not found - it may have been deleted');
           } else {
             // For other errors, keep trying for a bit
-            if (pollCount <= 5) {
+            if (pollCount <= 3) {
               setStage('Retrying connection...');
             } else {
               setJobStatus(prev => ({ ...prev, status: 'failed' }));
@@ -133,14 +122,79 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
       }
     };
 
-    // Only start polling for real job IDs - FASTER POLLING (1 second) FOR SMOOTHER UPDATES
+    // Only start polling for real job IDs
     if (!isTempJobId) {
-      const interval = setInterval(pollJob, 1000); // Changed from 2000 to 1000ms
+      const interval = setInterval(pollJob, 2000);
       pollJob(); // Initial call
       
       return () => clearInterval(interval);
     }
-  }, [isOpen, jobId, onComplete, onClose, contentType, pollCount]);
+  }, [isOpen, jobId, onComplete, onClose, contentType]);
+
+  // Handle transition from temp job ID to real job ID
+  useEffect(() => {
+    // Check if jobId changed from temp to real
+    if (jobId && !jobId.startsWith('temp_') && jobStatus.status === 'processing') {
+      console.log('🔄 Job ID changed from temp to real, starting polling:', jobId);
+      
+      // Reset state and start polling
+      setJobStatus({ status: 'pending', progress: 0 });
+      setStage('Connecting to analysis service...');
+      setPollCount(0);
+      
+      const pollJob = async () => {
+        try {
+          setPollCount(prev => prev + 1);
+          const response = await api.get(`/jobs/${jobId}`);
+          
+          if (response.data) {
+            const data = response.data;
+            setJobStatus({
+              status: data.status,
+              progress: data.progress || 0,
+              error_message: data.error_message
+            });
+
+            // Update stage description based on progress and status
+            if (data.status === 'pending') {
+              setStage('Queuing for processing...');
+            } else if (data.status === 'processing') {
+              if (data.progress < 20) {
+                setStage('Analyzing file structure...');
+              } else if (data.progress < 40) {
+                setStage(contentType?.startsWith('video') ? 'Extracting key frames...' : 'Processing image...');
+              } else if (data.progress < 60) {
+                setStage('Running AI analysis...');
+              } else if (data.progress < 80) {
+                setStage('Generating prompts...');
+              } else {
+                setStage('Finalizing results...');
+              }
+            } else if (data.status === 'completed') {
+              setStage('Analysis complete!');
+              setTimeout(() => {
+                onComplete();
+                onClose();
+              }, 2000);
+            } else if (data.status === 'failed') {
+              setStage('Analysis failed');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to poll job status during transition:', error);
+          if (pollCount > 5) {
+            setJobStatus(prev => ({ ...prev, status: 'failed' }));
+            setStage('Error connecting to analysis service');
+          }
+        }
+      };
+
+      const interval = setInterval(pollJob, 2000);
+      pollJob(); // Initial call
+      
+      return () => clearInterval(interval);
+    }
+  }, [jobId]); // Only depend on jobId to detect changes
 
   if (!isOpen) return null;
 
@@ -219,48 +273,37 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
           </div>
           <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-300 ease-out ${getProgressColor()}`}
+              className={`h-full rounded-full transition-all duration-500 ease-out ${getProgressColor()}`}
               style={{ width: `${jobStatus.progress}%` }}
             />
           </div>
         </div>
 
-        {/* Processing Steps Indicator - SYNCED WITH BACKEND STAGES */}
+        {/* Processing Steps Indicator */}
         <div className="space-y-2">
           <div className="text-xs font-medium text-gray-500 mb-3">Processing Steps:</div>
           {[
-            { name: 'File Upload', threshold: 0, maxThreshold: 10 },
-            { name: 'Content Analysis', threshold: 10, maxThreshold: 20 },
-            { name: 'AI Processing', threshold: 20, maxThreshold: 70 },
-            { name: 'Prompt Generation', threshold: 70, maxThreshold: 90 },
-            { name: 'Finalization', threshold: 90, maxThreshold: 100 }
-          ].map((step, index) => {
-            const isActive = jobStatus.progress >= step.threshold && jobStatus.progress < step.maxThreshold;
-            const isCompleted = jobStatus.progress >= step.maxThreshold;
-            
-            return (
-              <div key={index} className="flex items-center space-x-3">
-                <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  isCompleted
-                    ? jobStatus.status === 'failed' ? 'bg-red-500' : 'bg-green-500'
-                    : isActive 
-                      ? 'bg-blue-500 animate-pulse ring-2 ring-blue-300' 
-                      : 'bg-gray-300'
-                }`} />
-                <span className={`text-sm transition-colors duration-300 ${
-                  isCompleted || isActive ? 'text-gray-900 font-medium' : 'text-gray-500'
-                }`}>
-                  {step.name}
-                </span>
-                {isActive && (
-                  <span className="text-xs text-blue-600 ml-auto">In Progress...</span>
-                )}
-                {isCompleted && jobStatus.status !== 'failed' && (
-                  <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />
-                )}
-              </div>
-            );
-          })}
+            { name: 'File Upload', threshold: 0 },
+            { name: 'Content Analysis', threshold: 20 },
+            { name: 'AI Processing', threshold: 40 },
+            { name: 'Prompt Generation', threshold: 70 },
+            { name: 'Finalization', threshold: 90 }
+          ].map((step, index) => (
+            <div key={index} className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full ${
+                jobStatus.progress > step.threshold 
+                  ? jobStatus.status === 'failed' ? 'bg-red-500' : 'bg-green-500'
+                  : jobStatus.progress >= step.threshold 
+                    ? 'bg-blue-500 animate-pulse' 
+                    : 'bg-gray-300'
+              }`} />
+              <span className={`text-sm ${
+                jobStatus.progress >= step.threshold ? 'text-gray-900' : 'text-gray-500'
+              }`}>
+                {step.name}
+              </span>
+            </div>
+          ))}
         </div>
 
         {/* Action Button */}
