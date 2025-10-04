@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import DashboardPage from './pages/DashboardPage';
 import PricingPage from './pages/PricingPage';
+import ComingSoonPage from './pages/ComingSoonPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import UsageHistoryPage from './pages/UsageHistoryPage';
@@ -58,6 +59,7 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/coming-soon" element={<ComingSoonPage />} />
 
               {/* Protected routes */}
               <Route path="/dashboard" element={
