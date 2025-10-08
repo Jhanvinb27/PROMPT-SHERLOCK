@@ -21,11 +21,12 @@ progress_store: Dict[int, Dict[str, any]] = {}
 
 def update_job_progress(job_id: int, progress: int, stage: str, message: str = ""):
     """Update progress for a job - called from analysis.py"""
+    import time
     progress_store[job_id] = {
         "progress": progress,
         "stage": stage,
         "message": message,
-        "timestamp": asyncio.get_event_loop().time() if asyncio._get_running_loop() else 0
+        "timestamp": time.time()
     }
     print(f"📊 Progress Update - Job {job_id}: {progress}% - {stage} - {message}")
 
@@ -208,11 +209,17 @@ async def cancel_job(
         job.progress = 0
         
         # Find and delete the usage log entry for this job to refund quota
-        usage_entry = db.query(UsageLog).filter(
+        # Query all usage logs and filter in Python (works with SQLite and PostgreSQL)
+        usage_logs = db.query(UsageLog).filter(
             UsageLog.user_id == current_user.id,
-            UsageLog.action == "analyze",
-            UsageLog.details.op('->>')('job_id').cast(db.Integer) == job_id
-        ).first()
+            UsageLog.action == "analyze"
+        ).all()
+        
+        usage_entry = None
+        for log in usage_logs:
+            if log.details and log.details.get('job_id') == job_id:
+                usage_entry = log
+                break
         
         if usage_entry:
             db.delete(usage_entry)

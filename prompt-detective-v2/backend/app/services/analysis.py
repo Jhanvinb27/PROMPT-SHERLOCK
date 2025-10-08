@@ -635,6 +635,10 @@ def get_analysis_summary(job: AnalysisJob) -> Dict[str, Any]:
     
     result = job.result_data
     
+    # Get real-time progress from progress_store if available
+    from ..api.v1.progress import get_job_progress
+    progress_data = get_job_progress(job.id) or {}
+    
     summary = {
         "job_id": job.id,
         "filename": job.filename,
@@ -642,7 +646,11 @@ def get_analysis_summary(job: AnalysisJob) -> Dict[str, Any]:
         "status": job.status,
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-        "processing_time_seconds": job.processing_time_seconds
+        "processing_time_seconds": job.processing_time_seconds,
+        # Include real-time progress data
+        "progress": progress_data.get("progress", job.progress if hasattr(job, 'progress') else 0),
+        "current_stage": progress_data.get("stage", ""),
+        "progress_message": progress_data.get("message", "")
     }
     
     if job.status == "completed" and result:
