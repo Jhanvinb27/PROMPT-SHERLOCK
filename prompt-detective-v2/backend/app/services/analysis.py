@@ -139,12 +139,27 @@ def process_analysis_job(job_id: int, file_reference: FileReference, content_typ
     actual_path, cloud_url, cloud_id, temp_path = _normalize_file_reference(file_reference)
     db = SessionLocal()
     
-    def update_progress(progress: int, commit: bool = True):
+    def update_progress(progress: int, stage: str = "", message: str = "", commit: bool = True):
         """Helper to update job progress"""
         job.progress = progress
         if commit:
             db.commit()
             print(f"📊 Job {job_id} progress: {progress}%")
+        
+        # Update progress store for real-time tracking
+        try:
+            from ..api.v1.progress import update_job_progress
+            update_job_progress(job_id, progress, stage, message)
+        except Exception as e:
+            print(f"⚠️ Failed to update progress store: {e}")
+    
+    def check_if_cancelled():
+        """Check if job was cancelled by user"""
+        db.refresh(job)
+        if job.status == 'cancelled':
+            print(f"🛑 Job {job_id} was cancelled by user")
+            return True
+        return False
     
     try:
         # Get job from database
@@ -155,26 +170,59 @@ def process_analysis_job(job_id: int, file_reference: FileReference, content_typ
         
         # Stage 1: File Upload Complete (0-10%)
         job.status = "processing"
-        update_progress(10)
+        update_progress(10, "File Upload", "File uploaded successfully")
+        
+        if check_if_cancelled():
+            return
         
         # Stage 2: Content Analysis Starting (10-20%)
-        update_progress(15)
+        update_progress(15, "Content Analysis", "Analyzing file structure...")
         import time
         time.sleep(0.5)  # Brief pause for UI sync
-        update_progress(20)
         
-        # Stage 3: Analyzing file structure (20-40%)
-        update_progress(25)
+        if check_if_cancelled():
+            return
+            
+        update_progress(20, "Content Analysis", "Preparing for AI processing...")
+        
+        if check_if_cancelled():
+            return
+        
+        # Stage 3: Scene Detection / Frame Extraction (20-40%)
+        update_progress(25, "Scene Detection", "Detecting scenes and key frames..." if content_type == "video" else "Analyzing image composition...")
         time.sleep(0.5)
-        update_progress(35)
+        
+        if check_if_cancelled():
+            return
+            
+        update_progress(35, "Scene Detection", "Extracting visual features..." if content_type == "video" else "Identifying visual elements...")
+        
+        if check_if_cancelled():
+            return
         
         # Stage 4: AI Processing Starting (40-70%)
-        update_progress(45)
+        update_progress(45, "AI Analysis", "Running AI visual analysis...")
+        
+        if check_if_cancelled():
+            return
         
         # Generate analysis result using actual reverse engineering system
         start_time = datetime.now(timezone.utc)
-        result = perform_actual_analysis(file_reference, content_type, 
-                                        lambda p: update_progress(45 + int(p * 25)))
+        
+        def analysis_progress_callback(p):
+            """Callback for analysis progress (40-70% range)"""
+            if check_if_cancelled():
+                raise Exception("Job cancelled by user")
+            progress_value = 45 + int(p * 25)
+            stage_msg = "AI Analysis"
+            detail_msg = f"Processing... {int(p * 100)}%"
+            update_progress(progress_value, stage_msg, detail_msg)
+        
+        result = perform_actual_analysis(file_reference, content_type, analysis_progress_callback)
+        
+        if check_if_cancelled():
+            return
+            
         if not isinstance(result, dict):
             result = {"raw_analysis": result or {}}
 
@@ -189,10 +237,20 @@ def process_analysis_job(job_id: int, file_reference: FileReference, content_typ
         if thumb_path and not _is_http_url(str(thumb_path)):
             result["thumbnail_path"] = str(Path(str(thumb_path)).resolve())
 
+        if check_if_cancelled():
+            return
+
         # Stage 5: Prompt Generation (70-90%)
-        update_progress(75)
+        update_progress(75, "Prompt Generation", "Generating AI prompts...")
         time.sleep(0.3)
-        update_progress(85)
+        
+        if check_if_cancelled():
+            return
+            
+        update_progress(85, "Prompt Generation", "Refining prompt quality...")
+        
+        if check_if_cancelled():
+            return
         
         thumbnail_url = result.get("thumbnail_url")
         if cloud_id and (not thumbnail_url or not _is_http_url(str(thumbnail_url))):
@@ -206,14 +264,24 @@ def process_analysis_job(job_id: int, file_reference: FileReference, content_typ
             except Exception as thumb_err:
                 print(f"❌ Failed to generate cloud thumbnail: {thumb_err}")
         
+        if check_if_cancelled():
+            return
+        
         # Stage 6: Finalization (90-100%)
-        update_progress(92)
+        update_progress(92, "Finalization", "Preparing results...")
         time.sleep(0.2)
-        update_progress(95)
+        
+        if check_if_cancelled():
+            return
+            
+        update_progress(95, "Finalization", "Almost done...")
+        
+        if check_if_cancelled():
+            return
         
         # Analysis successful
         job.status = "completed"
-        update_progress(100)
+        update_progress(100, "Complete", "Analysis complete!")
         job.result_data = result
         job.completed_at = datetime.now(timezone.utc)
         
@@ -223,20 +291,43 @@ def process_analysis_job(job_id: int, file_reference: FileReference, content_typ
         
         db.commit()
         
+        # Clear progress data after completion
+        try:
+            from ..api.v1.progress import clear_job_progress
+            clear_job_progress(job_id)
+        except Exception as e:
+            print(f"⚠️ Failed to clear progress data: {e}")
+        
     except Exception as e:
         # Handle any errors during processing
         print(f"Error processing job {job_id}: {str(e)}")
         print(traceback.format_exc())
         
-        job.status = "failed"
-        job.error_message = f"Processing error: {str(e)}"
-        job.progress = 0
-        db.commit()
+        # Don't mark as failed if cancelled
+        if job.status != 'cancelled':
+            job.status = "failed"
+            job.error_message = f"Processing error: {str(e)}"
+            job.progress = 0
+            db.commit()
+            
+            # Update progress store
+            try:
+                from ..api.v1.progress import update_job_progress
+                update_job_progress(job_id, 0, "Failed", f"Error: {str(e)}")
+            except Exception as prog_err:
+                print(f"⚠️ Failed to update progress on error: {prog_err}")
         
     finally:
         db.close()
         if temp_path:
             cleanup_temp_file(temp_path)
+        
+        # Clear progress data
+        try:
+            from ..api.v1.progress import clear_job_progress
+            clear_job_progress(job_id)
+        except Exception as e:
+            print(f"⚠️ Failed to clear progress in finally: {e}")
 
 
 def perform_actual_analysis(file_reference: FileReference, content_type: str, 
