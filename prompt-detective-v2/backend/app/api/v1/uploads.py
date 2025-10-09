@@ -54,8 +54,11 @@ async def upload_file(
         )
     
     try:
-        # Save uploaded file - returns (file_url, public_id, temp_path)
-        file_url, public_id, temp_path = await save_upload_file(file, current_user.id)
+        # Save uploaded file - returns storage metadata dict
+        storage_info = await save_upload_file(file, current_user.id)
+        file_url = storage_info.get("file_url") or storage_info.get("actual_path")
+        public_id = storage_info.get("public_id")
+        temp_path = storage_info.get("temp_path")
         
         # Create analysis job
         job = AnalysisJob(
@@ -94,7 +97,13 @@ async def upload_file(
         # analyse locally while still knowing the persistent cloud location.
         queue_analysis_job(
             job.id,
-            (file_url, public_id, temp_path),
+            {
+                **storage_info,
+                "cloud_url": storage_info.get("file_url"),
+                "file_url": storage_info.get("file_url"),
+                "public_id": public_id,
+                "temp_path": temp_path,
+            },
             content_type
         )
         

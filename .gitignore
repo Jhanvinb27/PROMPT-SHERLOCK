@@ -50,6 +50,12 @@ env/
 
 # Environment Variables
 .env
+.env.production
+
+# Local Development (don't commit local data)
+app_data.sqlite3
+uploads_local/
+thumbnails_local/
 
 # IDE
 .vscode/

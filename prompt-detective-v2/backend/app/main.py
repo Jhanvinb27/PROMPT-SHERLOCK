@@ -44,16 +44,26 @@ async def health_check():
 
 # Serve static files (thumbnails, etc.)
 import os
+from pathlib import Path
+
 try:
+    backend_root = Path(__file__).resolve().parent.parent
+
     # Serve thumbnails - from backend/thumbnails directory
-    backend_thumbnails_path = os.path.join(os.path.dirname(__file__), "..", "thumbnails")
-    backend_thumbnails_path = os.path.abspath(backend_thumbnails_path)
-    if os.path.exists(backend_thumbnails_path):
-        app.mount("/static/thumbnails", StaticFiles(directory=backend_thumbnails_path), name="thumbnails")
+    backend_thumbnails_path = backend_root / "thumbnails"
+    if backend_thumbnails_path.exists():
+        app.mount("/static/thumbnails", StaticFiles(directory=str(backend_thumbnails_path)), name="thumbnails")
         print(f"✅ Serving thumbnails from: {backend_thumbnails_path}")
-    
-    # No fallback needed since we removed the root thumbnails directory
-        
+
+    # Serve uploaded files when using local storage
+    upload_dir = Path(settings.UPLOAD_DIR)
+    if not upload_dir.is_absolute():
+        upload_dir = (backend_root / upload_dir).resolve()
+
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
+    print(f"✅ Serving uploads from: {upload_dir}")
+
 except Exception as e:
     print(f"Warning: Could not mount static files: {e}")
     pass  # Static directories might not exist in development

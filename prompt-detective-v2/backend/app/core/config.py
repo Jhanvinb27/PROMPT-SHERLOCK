@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # File Storage
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "./uploads")
     MAX_UPLOAD_SIZE: int = 100 * 1024 * 1024  # 100MB
+    PUBLIC_API_BASE_URL: str = os.getenv("PUBLIC_API_BASE_URL", "http://localhost:8000")
+    CLOUDINARY_CLOUD_NAME: Optional[str] = os.getenv("CLOUDINARY_CLOUD_NAME")
+    CLOUDINARY_API_KEY: Optional[str] = os.getenv("CLOUDINARY_API_KEY")
+    CLOUDINARY_API_SECRET: Optional[str] = os.getenv("CLOUDINARY_API_SECRET")
     
     # API Configuration
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
@@ -55,6 +59,17 @@ class Settings(BaseSettings):
     def allowed_origins_list(self) -> list[str]:
         """Convert comma-separated origins to list"""
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def cloud_storage_configured(self) -> bool:
+        """Return True if Cloudinary credentials are present."""
+        return all(
+            [
+                self.CLOUDINARY_CLOUD_NAME,
+                self.CLOUDINARY_API_KEY,
+                self.CLOUDINARY_API_SECRET,
+            ]
+        )
     
     class Config:
         env_file = ".env"

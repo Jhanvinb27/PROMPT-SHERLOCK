@@ -49,8 +49,8 @@ def _normalize_file_reference(file_reference: FileReference) -> Tuple[Optional[s
     elif isinstance(file_reference, Mapping):
         cloud_url = file_reference.get("cloud_url") or file_reference.get("file_url")
         cloud_id = file_reference.get("cloud_id") or file_reference.get("public_id")
-        temp_path = file_reference.get("temp_path") or file_reference.get("local_path")
-        explicit_path = file_reference.get("actual_path")
+        temp_path = file_reference.get("temp_path")
+        explicit_path = file_reference.get("actual_path") or file_reference.get("local_path")
     else:
         explicit_path = str(file_reference) if file_reference is not None else None
 
