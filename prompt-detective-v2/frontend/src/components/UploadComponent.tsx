@@ -139,10 +139,12 @@ export const UploadComponent: React.FC<UploadComponentProps> = ({
   const downloadResult = (fileData: UploadedFile) => {
     if (!fileData.result) return;
     
-    const prompt = fileData.result.comprehensive_video_prompt || 
-                  fileData.result.suggested_prompt || 
-                  fileData.result.comprehensive_analysis || 
-                  'No prompt generated';
+  const prompt = fileData.result?.structured_prompt?.prompt?.main ||
+          fileData.result?.quick_prompt ||
+          fileData.result?.comprehensive_video_prompt || 
+          fileData.result?.suggested_prompt || 
+          fileData.result?.comprehensive_analysis || 
+          'No prompt generated';
     
     const blob = new Blob([prompt], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -310,9 +312,12 @@ export const UploadComponent: React.FC<UploadComponentProps> = ({
                       <p className="mb-2">Generated prompt preview:</p>
                       <div className="bg-white border border-green-200 rounded p-3 max-h-32 overflow-y-auto">
                         <p className="text-gray-700 text-xs font-mono">
-                          {(fileData.result.comprehensive_video_prompt || 
-                            fileData.result.suggested_prompt || 
-                            fileData.result.comprehensive_analysis || 
+                          {(fileData.result?.structured_prompt?.prompt?.quick ||
+                            fileData.result?.quick_prompt ||
+                            fileData.result?.structured_prompt?.prompt?.main ||
+                            fileData.result?.comprehensive_video_prompt || 
+                            fileData.result?.suggested_prompt || 
+                            fileData.result?.comprehensive_analysis || 
                             'No prompt generated').substring(0, 200)}...
                         </p>
                       </div>

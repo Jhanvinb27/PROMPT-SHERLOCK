@@ -404,6 +404,13 @@ def process_re_analysis_result(result: Dict[str, Any], content_type: str) -> Dic
             "content_type": content_type
         }
         
+        structured_prompt = result.get("structured_prompt") or {}
+        quick_prompt = result.get("quick_prompt")
+        negative_prompt = result.get("negative_prompt")
+
+        if structured_prompt:
+            processed["structured_prompt"] = structured_prompt
+
         if content_type == "video":
             # Extract video-specific information
             processed.update({
@@ -448,8 +455,22 @@ def process_re_analysis_result(result: Dict[str, Any], content_type: str) -> Dic
             )
         
         # Add the main prompt
+        prompt_block = structured_prompt.get("prompt", {}) if isinstance(structured_prompt, dict) else {}
+        if prompt_block.get("main"):
+            main_prompt = prompt_block["main"]
+
+        if quick_prompt is None and prompt_block.get("quick"):
+            quick_prompt = prompt_block["quick"]
+        if negative_prompt is None and prompt_block.get("negative"):
+            negative_prompt = prompt_block["negative"]
+
         processed["main_prompt"] = main_prompt
         
+        if quick_prompt:
+            processed["quick_prompt"] = quick_prompt
+        if negative_prompt:
+            processed["negative_prompt"] = negative_prompt
+
         # Add file paths
         processed["file_paths"] = {
             "json_path": result.get("saved_json_path", ""),
@@ -461,6 +482,8 @@ def process_re_analysis_result(result: Dict[str, Any], content_type: str) -> Dic
         # Create prompt preview
         if main_prompt:
             processed["prompt_preview"] = main_prompt[:200] + "..." if len(main_prompt) > 200 else main_prompt
+        elif quick_prompt:
+            processed["prompt_preview"] = quick_prompt
         
         # Store full analysis for download
         processed["raw_analysis"] = result
@@ -554,6 +577,13 @@ def extract_key_results(result: Dict[str, Any], content_type: str) -> Dict[str, 
     }
     
     try:
+        structured_prompt = result.get("structured_prompt") if isinstance(result.get("structured_prompt"), dict) else None
+        quick_prompt = result.get("quick_prompt")
+        negative_prompt = result.get("negative_prompt")
+
+        if structured_prompt:
+            extracted["structured_prompt"] = structured_prompt
+
         if content_type == "video":
             # Extract video-specific information from actual analysis
             video_info = result.get("video_info", {})
@@ -596,6 +626,20 @@ def extract_key_results(result: Dict[str, Any], content_type: str) -> Dict[str, 
                 result.get("comprehensive_video_prompt") or
                 ""
             )
+
+        if structured_prompt:
+            prompt_block = structured_prompt.get("prompt", {})
+            if prompt_block.get("main"):
+                extracted["main_prompt"] = prompt_block["main"]
+            if quick_prompt is None and prompt_block.get("quick"):
+                quick_prompt = prompt_block["quick"]
+            if negative_prompt is None and prompt_block.get("negative"):
+                negative_prompt = prompt_block["negative"]
+
+        if quick_prompt:
+            extracted["quick_prompt"] = quick_prompt
+        if negative_prompt:
+            extracted["negative_prompt"] = negative_prompt
         
         # Extract file paths (from actual analysis)
         file_paths = dict(result.get("file_paths") or {})
@@ -608,6 +652,8 @@ def extract_key_results(result: Dict[str, Any], content_type: str) -> Dict[str, 
         # Create a preview of the prompt (first 300 characters for better preview)
         if extracted["main_prompt"]:
             extracted["prompt_preview"] = extracted["main_prompt"][:300] + "..." if len(extracted["main_prompt"]) > 300 else extracted["main_prompt"]
+        elif quick_prompt:
+            extracted["prompt_preview"] = quick_prompt
         else:
             extracted["prompt_preview"] = "Analysis completed - full prompt available for download"
         
@@ -734,6 +780,9 @@ def get_analysis_summary(job: AnalysisJob) -> Dict[str, Any]:
             "prompt_preview": extracted.get("prompt_preview", ""),
             "main_prompt": extracted.get("main_prompt", ""),  # Include full prompt for frontend
             "has_full_prompt": bool(extracted.get("main_prompt")),
+            "structured_prompt": extracted.get("structured_prompt") or result.get("structured_prompt"),
+            "quick_prompt": extracted.get("quick_prompt") or result.get("quick_prompt"),
+            "negative_prompt": extracted.get("negative_prompt") or result.get("negative_prompt"),
             "file_paths": extracted.get("file_paths", {}),
             "analysis_quality": extracted.get("analysis_quality", {}),
             "enhancement_features": result.get("enhancement_features", []),
@@ -765,6 +814,9 @@ def get_downloadable_content(job: AnalysisJob) -> Dict[str, Any]:
         "filename": job.filename,
         "analysis_date": job.completed_at.isoformat() if job.completed_at else "",
         "main_prompt": extracted.get("main_prompt", ""),
+        "structured_prompt": extracted.get("structured_prompt") or result.get("structured_prompt"),
+        "quick_prompt": extracted.get("quick_prompt") or result.get("quick_prompt"),
+        "negative_prompt": extracted.get("negative_prompt") or result.get("negative_prompt"),
         "full_analysis": result.get("raw_analysis", result),  # Include full raw analysis
         "analysis_method": result.get("analysis_method", "AI Reverse Engineering"),
         "enhancement_features": result.get("enhancement_features", []),

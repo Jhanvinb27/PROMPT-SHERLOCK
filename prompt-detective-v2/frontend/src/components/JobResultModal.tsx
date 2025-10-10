@@ -1,6 +1,35 @@
 import React, { useState } from 'react';
 import { X, Copy, Download, FileText, Image, Video, Check, Eye, Sparkles } from 'lucide-react';
 
+interface StructuredPromptSection {
+  title?: string;
+  bullets?: string[];
+}
+
+interface StructuredPromptOverview {
+  headline?: string;
+  summary?: string;
+  key_characteristics?: string[];
+}
+
+interface StructuredPromptData {
+  overview?: StructuredPromptOverview;
+  prompt?: {
+    main?: string;
+    quick?: string;
+    negative?: string;
+  };
+  sections?: StructuredPromptSection[];
+  technical?: {
+    camera?: string[];
+    lighting?: string[];
+    rendering?: string[];
+    materials?: string[];
+  };
+  style_keywords?: string[];
+  color_palette?: string[];
+}
+
 interface JobResult {
   job_id: string;
   filename: string;
@@ -9,6 +38,9 @@ interface JobResult {
   progress: number;
   main_prompt?: string;
   prompt_preview?: string;
+  structured_prompt?: StructuredPromptData;
+  quick_prompt?: string;
+  negative_prompt?: string;
   summary?: {
     content_type: string;
     duration?: number;
@@ -45,6 +77,17 @@ const JobResultModal: React.FC<JobResultModalProps> = ({ isOpen, onClose, job })
   const [activeTab, setActiveTab] = useState<'prompt' | 'details' | 'metadata'>('prompt');
 
   if (!isOpen) return null;
+
+  const structuredPrompt = job.structured_prompt;
+  const promptBlock = structuredPrompt?.prompt;
+  const mainPrompt = promptBlock?.main || job.main_prompt || '';
+  const quickPrompt = promptBlock?.quick || job.quick_prompt || '';
+  const negativePrompt = promptBlock?.negative || job.negative_prompt || '';
+  const overview = structuredPrompt?.overview;
+  const promptSections = structuredPrompt?.sections || [];
+  const technical = structuredPrompt?.technical;
+  const styleKeywords = structuredPrompt?.style_keywords || [];
+  const colorPalette = structuredPrompt?.color_palette || [];
 
   const copyToClipboard = async (text: string, fieldName: string) => {
     try {
@@ -147,39 +190,184 @@ const JobResultModal: React.FC<JobResultModalProps> = ({ isOpen, onClose, job })
         <div className="p-6 max-h-[60vh] overflow-y-auto">
           {activeTab === 'prompt' && (
             <div className="space-y-6">
-              {job.main_prompt ? (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-lg font-semibold text-gray-900 flex items-center">
-                      <Sparkles className="w-5 h-5 mr-2 text-purple-500" />
-                      Complete AI Prompt
-                    </h4>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => copyToClipboard(job.main_prompt!, 'main_prompt')}
-                        className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        {copiedField === 'main_prompt' ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                        <span>{copiedField === 'main_prompt' ? 'Copied!' : 'Copy'}</span>
-                      </button>
-                      <button
-                        onClick={() => downloadAsFile(job.main_prompt!, `${job.filename}_prompt.txt`)}
-                        className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        <span>Download</span>
-                      </button>
+              {mainPrompt ? (
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-3">
+                      <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                        <Sparkles className="w-5 h-5 mr-2 text-purple-500" />
+                        Complete AI Prompt
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => copyToClipboard(mainPrompt, 'main_prompt')}
+                          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          {copiedField === 'main_prompt' ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                          <span>{copiedField === 'main_prompt' ? 'Copied!' : 'Copy'}</span>
+                        </button>
+                        <button
+                          onClick={() => downloadAsFile(mainPrompt, `${job.filename}_prompt.txt`)}
+                          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>Download</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <pre className="whitespace-pre-wrap text-sm text-gray-800 font-mono leading-relaxed">
+                        {mainPrompt}
+                      </pre>
                     </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <pre className="whitespace-pre-wrap text-sm text-gray-800 font-mono leading-relaxed">
-                      {job.main_prompt}
-                    </pre>
-                  </div>
+
+                  {(quickPrompt || negativePrompt) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {quickPrompt && (
+                        <div className="border border-blue-200 bg-blue-50/60 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h5 className="font-semibold text-blue-900">Quick Prompt</h5>
+                              <p className="text-xs text-blue-600 mt-1">220-character optimized variant for fast iteration</p>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(quickPrompt, 'quick_prompt')}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              {copiedField === 'quick_prompt' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          <p className="text-sm text-blue-900 leading-relaxed">{quickPrompt}</p>
+                        </div>
+                      )}
+
+                      {negativePrompt && (
+                        <div className="border border-rose-200 bg-rose-50/60 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h5 className="font-semibold text-rose-900">Negative Prompt</h5>
+                              <p className="text-xs text-rose-600 mt-1">Elements to avoid for a clean render</p>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(negativePrompt, 'negative_prompt')}
+                              className="text-rose-600 hover:text-rose-800"
+                            >
+                              {copiedField === 'negative_prompt' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          <p className="text-sm text-rose-900 leading-relaxed">{negativePrompt}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {overview && (
+                    <div className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
+                      <h5 className="text-base font-semibold text-gray-900 mb-2">Creative Overview</h5>
+                      {overview.headline && (
+                        <p className="text-lg font-medium text-gray-800 mb-2">{overview.headline}</p>
+                      )}
+                      {overview.summary && (
+                        <p className="text-sm text-gray-600 leading-relaxed">{overview.summary}</p>
+                      )}
+                      {overview.key_characteristics && overview.key_characteristics.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {overview.key_characteristics.map((item, idx) => (
+                            <span
+                              key={`${item}-${idx}`}
+                              className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {promptSections.length > 0 && (
+                    <div>
+                      <h5 className="text-base font-semibold text-gray-900 mb-3">Prompt Building Blocks</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {promptSections.map((section, idx) => (
+                          <div key={`${section.title}-${idx}`} className="border border-gray-200 rounded-lg p-4 bg-gray-50/60">
+                            {section.title && (
+                              <h6 className="font-semibold text-gray-900 mb-2">{section.title}</h6>
+                            )}
+                            <ul className="space-y-1 text-sm text-gray-700 list-disc list-inside">
+                              {(section.bullets || []).map((bullet, bulletIdx) => (
+                                <li key={`${idx}-${bulletIdx}`}>{bullet}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {technical && (
+                    <div>
+                      <h5 className="text-base font-semibold text-gray-900 mb-3">Technical Blueprint</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {([
+                          ['Camera & Optics', technical.camera],
+                          ['Lighting Strategy', technical.lighting],
+                          ['Rendering & Post', technical.rendering],
+                          ['Materials & Surfaces', technical.materials],
+                        ] as const).map(([label, values]) => (
+                          values && values.length > 0 ? (
+                            <div key={label} className="border border-indigo-100 rounded-lg p-4 bg-indigo-50/40">
+                              <h6 className="font-semibold text-indigo-900 mb-2">{label}</h6>
+                              <ul className="space-y-1 text-sm text-indigo-900 list-disc list-inside">
+                                {values.map((value, idx) => (
+                                  <li key={`${label}-${idx}`}>{value}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {styleKeywords.length > 0 && (
+                    <div>
+                      <h5 className="text-base font-semibold text-gray-900 mb-2">Style Keywords</h5>
+                      <div className="flex flex-wrap gap-2">
+                        {styleKeywords.map((keyword, idx) => (
+                          <span
+                            key={`${keyword}-${idx}`}
+                            className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium"
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {colorPalette.length > 0 && (
+                    <div>
+                      <h5 className="text-base font-semibold text-gray-900 mb-2">Color Palette</h5>
+                      <div className="flex flex-wrap gap-3">
+                        {colorPalette.map((color, idx) => (
+                          <div key={`${color}-${idx}`} className="flex items-center space-x-2">
+                            <span
+                              className="w-6 h-6 rounded-full border border-gray-200"
+                              style={{ backgroundColor: color }}
+                              title={color}
+                            ></span>
+                            <span className="text-sm text-gray-600">{color}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12">
@@ -346,9 +534,9 @@ const JobResultModal: React.FC<JobResultModalProps> = ({ isOpen, onClose, job })
           >
             Close
           </button>
-          {job.main_prompt && (
+          {mainPrompt && (
             <button
-              onClick={() => downloadAsFile(job.main_prompt!, `${job.filename}_complete_analysis.txt`)}
+              onClick={() => downloadAsFile(mainPrompt, `${job.filename}_complete_analysis.txt`)}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
             >
               <Download className="w-4 h-4" />
