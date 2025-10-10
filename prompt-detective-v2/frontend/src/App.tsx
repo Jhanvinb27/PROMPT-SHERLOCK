@@ -21,7 +21,6 @@ import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
-import { WarmupIndicator } from './components/WarmupIndicator';
 
 // Styles
 import './index.css';
@@ -36,8 +35,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 function App() {
   const { isLoading, initialize } = useAuthStore();
@@ -55,7 +52,6 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <Router>
-          {import.meta.env.PROD && <WarmupIndicator apiBaseUrl={apiBaseUrl} />}
           <Layout>
             <Routes>
               {/* Public routes */}
