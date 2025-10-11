@@ -10,6 +10,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
+import requests
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 from .config import settings
 from ..database import get_db
@@ -177,32 +180,161 @@ def get_current_admin_user(current_user: User = Depends(get_current_active_user)
         )
     return current_user
 
-async def google_oauth_callback(code: str, redirect_uri: str) -> Dict[str, Any]:
+async def google_oauth_callback(code: str, redirect_uri: str, db: Session) -> TokenResponse:
     """
-    Handle Google OAuth callback
-    TODO: Implement actual Google OAuth flow
+    Handle Google OAuth callback - Exchange authorization code for user tokens
+    
+    Args:
+        code: Authorization code from Google OAuth
+        redirect_uri: The redirect URI used in the OAuth flow
+        db: Database session
+        
+    Returns:
+        TokenResponse with access_token, refresh_token, and user info
     """
-    # Placeholder implementation
-    # In production, exchange code for tokens and get user info
     google_client_id = os.getenv("GOOGLE_CLIENT_ID")
     google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
     
     if not google_client_id or not google_client_secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Google OAuth not configured"
+            detail="Google OAuth not configured on server"
         )
     
-    # TODO: Implement Google OAuth token exchange
-    # 1. Exchange code for access token
-    # 2. Get user info from Google API
-    # 3. Create or update user in database
-    # 4. Return JWT tokens
-    
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Google OAuth implementation pending"
-    )
+    try:
+        # Step 1: Exchange authorization code for access token
+        token_url = "https://oauth2.googleapis.com/token"
+        token_data = {
+            "code": code,
+            "client_id": google_client_id,
+            "client_secret": google_client_secret,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code"
+        }
+        
+        token_response = requests.post(token_url, data=token_data)
+        
+        if token_response.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to exchange code for token: {token_response.text}"
+            )
+        
+        token_json = token_response.json()
+        google_access_token = token_json.get("access_token")
+        id_token_str = token_json.get("id_token")
+        
+        if not google_access_token or not id_token_str:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid token response from Google"
+            )
+        
+        # Step 2: Verify ID token and get user info
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                id_token_str, 
+                google_requests.Request(), 
+                google_client_id
+            )
+            
+            # Verify token issuer
+            if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+                raise ValueError('Wrong issuer.')
+                
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid ID token: {str(e)}"
+            )
+        
+        # Step 3: Get user information from Google
+        user_info_url = "https://www.googleapis.com/oauth2/v2/userinfo"
+        headers = {"Authorization": f"Bearer {google_access_token}"}
+        user_info_response = requests.get(user_info_url, headers=headers)
+        
+        if user_info_response.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to get user info from Google"
+            )
+        
+        user_info = user_info_response.json()
+        email = user_info.get("email")
+        full_name = user_info.get("name", "")
+        google_id = user_info.get("id")
+        picture = user_info.get("picture")
+        
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email not provided by Google"
+            )
+        
+        # Step 4: Create or update user in database
+        user = db.query(User).filter(User.email == email).first()
+        
+        if user:
+            # Update existing user
+            user.full_name = full_name or user.full_name
+            user.updated_at = datetime.utcnow()
+            # Note: We don't update password_hash for OAuth users
+        else:
+            # Create new user with OAuth
+            # For OAuth users, we create a random secure password they'll never use
+            import secrets
+            random_password = secrets.token_urlsafe(32)
+            hashed_password = get_password_hash(random_password)
+            
+            user = User(
+                email=email,
+                password_hash=hashed_password,
+                full_name=full_name or email.split("@")[0],
+                username=email.split("@")[0],
+                subscription_tier="free",
+                is_active=True,
+                is_premium=False,
+                api_calls_used=0,
+                api_calls_limit=150  # Free tier limit
+            )
+            db.add(user)
+        
+        db.commit()
+        db.refresh(user)
+        
+        # Step 5: Create JWT tokens for our application
+        access_token = create_access_token(
+            data={"sub": user.email, "user_id": user.id}
+        )
+        refresh_token = create_refresh_token(
+            data={"sub": user.email, "user_id": user.id}
+        )
+        
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
+            user={
+                "id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "username": user.username,
+                "is_active": user.is_active,
+                "is_premium": user.is_premium,
+                "api_calls_limit": user.api_calls_limit,
+                "api_calls_used": user.api_calls_used,
+                "subscription_tier": user.subscription_tier,
+                "created_at": user.created_at.isoformat() if user.created_at else ""
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OAuth authentication failed: {str(e)}"
+        )
 
 def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
     """Register new user and return tokens"""

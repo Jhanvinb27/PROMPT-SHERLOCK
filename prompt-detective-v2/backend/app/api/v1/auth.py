@@ -9,7 +9,7 @@ from ...core.auth import (
     PasswordResetRequest, PasswordResetConfirm,
     signup_user, login_user, refresh_access_token,
     request_password_reset, reset_password,
-    get_current_active_user
+    get_current_active_user, google_oauth_callback
 )
 from ...database import get_db
 from ...models.user import User
@@ -34,13 +34,18 @@ async def refresh_token(
     """Refresh access token using refresh token"""
     return refresh_access_token(refresh_token, db)
 
-@router.post("/google/oauth")
+@router.post("/google/oauth", response_model=TokenResponse)
 async def google_oauth(oauth_data: GoogleOAuthRequest, db: Session = Depends(get_db)):
-    """Handle Google OAuth callback"""
-    # TODO: Implement Google OAuth flow
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Google OAuth not yet implemented"
+    """
+    Handle Google OAuth callback
+    
+    Exchanges the authorization code from Google for user tokens
+    Creates or updates user account and returns JWT tokens
+    """
+    return await google_oauth_callback(
+        code=oauth_data.code,
+        redirect_uri=oauth_data.redirect_uri,
+        db=db
     )
 
 @router.post("/password-reset/request")
