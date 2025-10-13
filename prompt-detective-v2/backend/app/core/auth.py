@@ -2,7 +2,7 @@
 Enhanced authentication system with JWT, OAuth, and security features
 """
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Union
 import jwt
 from passlib.context import CryptContext
@@ -100,9 +100,9 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     """Create JWT access token"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
+        expire = datetime.now(timezone.utc) + timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
     
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -111,7 +111,7 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
 def create_refresh_token(data: Dict[str, Any]) -> str:
     """Create JWT refresh token"""
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
@@ -136,7 +136,7 @@ def verify_token(token: str, token_type: str = "access") -> Optional[TokenData]:
 def create_password_reset_token(email: str) -> str:
     """Create password reset token"""
     data = {"sub": email, "type": "password_reset"}
-    expire = datetime.utcnow() + timedelta(hours=1)  # 1 hour expiry
+    expire = datetime.now(timezone.utc) + timedelta(hours=1)  # 1 hour expiry
     data.update({"exp": expire})
     return jwt.encode(data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -292,7 +292,7 @@ async def google_oauth_callback(code: str, redirect_uri: str, db: Session) -> To
         if user:
             # Update existing user
             user.full_name = full_name or user.full_name
-            user.updated_at = datetime.utcnow()
+            user.updated_at = datetime.now(timezone.utc)
             # Note: We don't update password_hash for OAuth users
         else:
             # Create new user with OAuth
@@ -566,7 +566,7 @@ def reset_password(db: Session, email: str, otp_code: str, new_password: str) ->
     
     # Update password
     user.password_hash = get_password_hash(new_password)
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     
@@ -623,7 +623,7 @@ async def verify_email(db: Session, email: str, otp_code: str) -> Dict[str, str]
     
     # Mark email as verified
     user.is_email_verified = True
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now(timezone.utc)
     db.commit()
     
     # Send welcome email

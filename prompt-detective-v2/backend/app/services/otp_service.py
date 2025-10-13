@@ -4,7 +4,7 @@ Uses 6-digit OTP codes with expiration
 """
 import random
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 
@@ -44,7 +44,7 @@ def create_otp(
     
     # Generate new OTP
     otp_code = generate_otp()
-    expires_at = datetime.utcnow() + timedelta(minutes=expires_in_minutes)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
     
     # Store OTP in database
     otp = OTPCode(
@@ -88,7 +88,7 @@ def verify_otp(
     if not otp:
         return False, "Invalid OTP code"
     
-    if datetime.utcnow() > otp.expires_at:
+    if datetime.now(timezone.utc) > otp.expires_at:
         return False, "OTP code has expired"
     
     # Mark OTP as used
@@ -148,7 +148,7 @@ def resend_otp(
     recent_otp = db.query(OTPCode).filter(
         OTPCode.user_id == user_id,
         OTPCode.otp_type == otp_type,
-        OTPCode.created_at > datetime.utcnow() - timedelta(minutes=2)
+        OTPCode.created_at > datetime.now(timezone.utc) - timedelta(minutes=2)
     ).first()
     
     if recent_otp:
