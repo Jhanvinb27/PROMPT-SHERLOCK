@@ -490,7 +490,13 @@ async def request_password_reset(db: Session, email: str) -> Dict[str, str]:
         return {"message": "If email exists, reset OTP has been sent"}
     
     # Send password reset OTP
-    await send_password_reset_otp(db, user)
+    email_sent = await send_password_reset_otp(db, user)
+    
+    if not email_sent:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send password reset email. Please check your email configuration or try again later."
+        )
     
     return {"message": "If email exists, reset OTP has been sent"}
 
@@ -560,7 +566,13 @@ async def request_email_verification(db: Session, email: str) -> Dict[str, str]:
         )
     
     # Send verification OTP
-    await send_verification_otp(db, user)
+    email_sent = await send_verification_otp(db, user)
+    
+    if not email_sent:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send verification email. Please check your email configuration or try again later."
+        )
     
     return {"message": "Verification OTP sent to your email"}
 

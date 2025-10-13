@@ -63,9 +63,11 @@ def _send_with_smtp_sync(
     use_tls = settings.SMTP_USE_TLS
 
     if not host:
-        raise ValueError("SMTP host not configured")
+        raise ValueError("SMTP_HOST not configured. Please set SMTP_HOST environment variable.")
     if not password:
-        raise ValueError("SMTP password not configured")
+        raise ValueError("SMTP_PASSWORD not configured. Please set SMTP_PASSWORD environment variable.")
+    if not username:
+        raise ValueError("SMTP_USERNAME not configured. Please set SMTP_USERNAME environment variable.")
 
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
@@ -74,12 +76,19 @@ def _send_with_smtp_sync(
     message.attach(MIMEText(text, "plain"))
     message.attach(MIMEText(html, "html"))
 
-    with smtplib.SMTP(host, port, timeout=30) as server:
-        if use_tls:
-            server.starttls()
-        if username and password:
-            server.login(username, password)
-        server.sendmail(sender_email, [to_email], message.as_string())
+    try:
+        with smtplib.SMTP(host, port, timeout=30) as server:
+            if use_tls:
+                server.starttls()
+            if username and password:
+                server.login(username, password)
+            server.sendmail(sender_email, [to_email], message.as_string())
+    except smtplib.SMTPAuthenticationError as e:
+        raise ValueError(f"SMTP Authentication failed. Please check SMTP_USERNAME and SMTP_PASSWORD. Error: {e}")
+    except smtplib.SMTPException as e:
+        raise ValueError(f"SMTP error occurred: {e}")
+    except Exception as e:
+        raise ValueError(f"Failed to send email: {e}")
 
 
 async def _send_with_smtp(**kwargs) -> bool:
@@ -88,7 +97,15 @@ async def _send_with_smtp(**kwargs) -> bool:
         print(f"✅ Email sent via SMTP to {kwargs['to_email']}")
         return True
     except Exception as exc:  # pragma: no cover - external SMTP failure
-        print(f"❌ SMTP send failed for {kwargs['to_email']}: {exc}")
+        import logging
+        import traceback
+        logger = logging.getLogger(__name__)
+        error_msg = f"❌ SMTP send failed for {kwargs['to_email']}: {exc}"
+        print(error_msg)
+        logger.error(error_msg)
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        # Print detailed config for debugging (without password)
+        print(f"SMTP Config: host={settings.SMTP_HOST}, port={settings.SMTP_PORT}, username={settings.SMTP_USERNAME}, use_tls={settings.SMTP_USE_TLS}")
         return False
 
 
