@@ -10,10 +10,20 @@ from .core.config import settings
 from .api.v1.router import api_router
 from .database import engine, Base
 
+# Import migration runner
+import sys
+from pathlib import Path
+backend_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(backend_root))
+from run_migrations import run_migrations
+
 # Create tables on startup
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    # Run migrations first (adds missing columns)
+    run_migrations()
+    # Then create tables (won't fail if they exist)
     Base.metadata.create_all(bind=engine)
     yield
     # Shutdown - cleanup if needed
