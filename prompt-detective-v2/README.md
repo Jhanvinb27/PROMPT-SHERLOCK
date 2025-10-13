@@ -295,7 +295,7 @@ redis-server &
 cd backend && rq worker prompt-detective-queue &
 
 # 3. End-to-end test
-# Visit http://localhost:5173, signup, upload file, verify analysis
+# Visit http://localhost:3000, signup, upload file, verify analysis
 ```
 
 This implementation provides a complete, production-ready migration while preserving all existing functionality and adding enterprise-grade features. The modular architecture allows for easy expansion and maintenance.

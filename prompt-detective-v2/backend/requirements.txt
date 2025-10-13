@@ -34,6 +34,7 @@ pydantic-settings
 requests
 aiofiles
 cloudinary
+resend  # HTTP-based email service (works on Render free tier)
 
 # Development
 pytest

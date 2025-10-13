@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     EMAIL_FROM_ADDRESS: str = os.getenv("EMAIL_FROM_ADDRESS", "tryreverseai@gmail.com")
     EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "Reverse AI")
     
+    # Resend API (HTTP-based, works on Render free tier)
+    RESEND_API_KEY: Optional[str] = os.getenv("RESEND_API_KEY")
+    
     # Frontend URL (for email links and OAuth redirects)
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     

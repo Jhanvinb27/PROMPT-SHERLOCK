@@ -1,4 +1,4 @@
-"""Email service utilities using Gmail SMTP."""
+"""Email service utilities using Resend (HTTP-based) or SMTP fallback."""
 import asyncio
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -44,6 +44,40 @@ def get_email_template_footer() -> str:
         </p>
     </div>
     """
+
+
+async def _send_with_resend(
+    *,
+    to_email: str,
+    subject: str,
+    html: str,
+    text: str,
+    sender_name: Optional[str] = None,
+    sender_email: Optional[str] = None,
+) -> bool:
+    """Send email using Resend API (HTTP-based, works on Render free tier)"""
+    try:
+        import resend
+        
+        resend.api_key = settings.RESEND_API_KEY
+        
+        sender_name = sender_name or settings.EMAIL_FROM_NAME or "Reverse AI"
+        sender_email = sender_email or settings.EMAIL_FROM_ADDRESS or "onboarding@resend.dev"
+        
+        params = {
+            "from": f"{sender_name} <{sender_email}>",
+            "to": [to_email],
+            "subject": subject,
+            "html": html,
+        }
+        
+        email = resend.Emails.send(params)
+        print(f"✅ Email sent via Resend to {to_email} (ID: {email.get('id', 'N/A')})")
+        return True
+        
+    except Exception as exc:
+        print(f"❌ Resend send failed for {to_email}: {exc}")
+        return False
 
 
 def _send_with_smtp_sync(
@@ -118,19 +152,43 @@ async def _dispatch_email(
     sender_name: Optional[str] = None,
     sender_email: Optional[str] = None,
 ) -> bool:
-    """Send email using Gmail SMTP."""
+    """
+    Send email using available service.
+    Priority: Resend (HTTP-based) > SMTP
+    Resend works on Render free tier (no port restrictions)
+    """
     sender_name = sender_name or settings.EMAIL_FROM_NAME or "Reverse AI"
     sender_email = sender_email or settings.EMAIL_FROM_ADDRESS or "tryreverseai@gmail.com"
     
-    # Always use Gmail SMTP
-    return await _send_with_smtp(
-        to_email=to_email,
-        subject=subject,
-        html=html,
-        text=text,
-        sender_name=sender_name,
-        sender_email=sender_email,
-    )
+    # Try Resend first (works on Render free tier)
+    if settings.RESEND_API_KEY:
+        print(f"📧 Attempting to send email via Resend to {to_email}")
+        success = await _send_with_resend(
+            to_email=to_email,
+            subject=subject,
+            html=html,
+            text=text,
+            sender_name=sender_name,
+            sender_email=sender_email,
+        )
+        if success:
+            return True
+        print("⚠️ Resend failed, trying SMTP fallback...")
+    
+    # Fall back to SMTP (may not work on Render free tier due to port blocking)
+    if settings.SMTP_PASSWORD:
+        print(f"📧 Attempting to send email via SMTP to {to_email}")
+        return await _send_with_smtp(
+            to_email=to_email,
+            subject=subject,
+            html=html,
+            text=text,
+            sender_name=sender_name,
+            sender_email=sender_email,
+        )
+    
+    print(f"❌ No email service configured (RESEND_API_KEY or SMTP_PASSWORD required)")
+    return False
 
 
 async def send_verification_email(email: str, name: str, otp_code: str) -> bool:
