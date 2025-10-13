@@ -34,7 +34,7 @@ pydantic-settings
 requests
 aiofiles
 cloudinary
-resend  # HTTP-based email service (works on Render free tier)
+sib-api-v3-sdk  # Brevo/Sendinblue - FREE 300 emails/day, no domain needed
 
 # Development
 pytest

@@ -46,7 +46,10 @@ class Settings(BaseSettings):
     EMAIL_FROM_ADDRESS: str = os.getenv("EMAIL_FROM_ADDRESS", "tryreverseai@gmail.com")
     EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "Reverse AI")
     
-    # Resend API (HTTP-based, works on Render free tier)
+    # Brevo/Sendinblue API (FREE 300 emails/day, no domain verification needed)
+    BREVO_API_KEY: Optional[str] = os.getenv("BREVO_API_KEY")
+    
+    # Resend API (requires domain verification)
     RESEND_API_KEY: Optional[str] = os.getenv("RESEND_API_KEY")
     
     # Frontend URL (for email links and OAuth redirects)

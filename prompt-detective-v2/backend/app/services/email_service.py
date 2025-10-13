@@ -1,4 +1,4 @@
-"""Email service utilities using Resend (HTTP-based) or SMTP fallback."""
+"""Email service utilities using Brevo API (free, no domain needed) or SMTP fallback."""
 import asyncio
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -44,6 +44,60 @@ def get_email_template_footer() -> str:
         </p>
     </div>
     """
+
+
+async def _send_with_brevo(
+    *,
+    to_email: str,
+    subject: str,
+    html: str,
+    text: str,
+    sender_name: Optional[str] = None,
+    sender_email: Optional[str] = None,
+) -> bool:
+    """
+    Send email using Brevo (Sendinblue) API
+    - FREE 300 emails/day
+    - No domain verification needed
+    - Works with any email address
+    - HTTPS-based (no port blocking on Render)
+    """
+    try:
+        import sib_api_v3_sdk
+        from sib_api_v3_sdk.rest import ApiException
+        
+        # Configure API key
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key['api-key'] = settings.BREVO_API_KEY
+        
+        # Create API instance
+        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
+            sib_api_v3_sdk.ApiClient(configuration)
+        )
+        
+        sender_name = sender_name or settings.EMAIL_FROM_NAME or "Reverse AI"
+        sender_email = sender_email or settings.EMAIL_FROM_ADDRESS or "tryreverseai@gmail.com"
+        
+        # Create email
+        send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
+            to=[{"email": to_email}],
+            sender={"name": sender_name, "email": sender_email},
+            subject=subject,
+            html_content=html,
+            text_content=text
+        )
+        
+        # Send email
+        api_response = api_instance.send_transac_email(send_smtp_email)
+        print(f"✅ Email sent via Brevo to {to_email} (Message ID: {api_response.message_id})")
+        return True
+        
+    except ApiException as e:
+        print(f"❌ Brevo API error for {to_email}: {e}")
+        return False
+    except Exception as exc:
+        print(f"❌ Brevo send failed for {to_email}: {exc}")
+        return False
 
 
 async def _send_with_resend(
@@ -154,13 +208,27 @@ async def _dispatch_email(
 ) -> bool:
     """
     Send email using available service.
-    Priority: Resend (HTTP-based) > SMTP
-    Resend works on Render free tier (no port restrictions)
+    Priority: Brevo (free, no domain) > Resend > SMTP
     """
     sender_name = sender_name or settings.EMAIL_FROM_NAME or "Reverse AI"
     sender_email = sender_email or settings.EMAIL_FROM_ADDRESS or "tryreverseai@gmail.com"
     
-    # Try Resend first (works on Render free tier)
+    # Priority 1: Brevo (FREE 300/day, no domain needed, works on Render)
+    if settings.BREVO_API_KEY:
+        print(f"📧 Attempting to send email via Brevo to {to_email}")
+        success = await _send_with_brevo(
+            to_email=to_email,
+            subject=subject,
+            html=html,
+            text=text,
+            sender_name=sender_name,
+            sender_email=sender_email,
+        )
+        if success:
+            return True
+        print("⚠️ Brevo failed, trying next method...")
+    
+    # Priority 2: Resend (requires domain verification)
     if settings.RESEND_API_KEY:
         print(f"📧 Attempting to send email via Resend to {to_email}")
         success = await _send_with_resend(
@@ -175,7 +243,7 @@ async def _dispatch_email(
             return True
         print("⚠️ Resend failed, trying SMTP fallback...")
     
-    # Fall back to SMTP (may not work on Render free tier due to port blocking)
+    # Priority 3: SMTP (doesn't work on Render free tier)
     if settings.SMTP_PASSWORD:
         print(f"📧 Attempting to send email via SMTP to {to_email}")
         return await _send_with_smtp(
@@ -187,7 +255,7 @@ async def _dispatch_email(
             sender_email=sender_email,
         )
     
-    print(f"❌ No email service configured (RESEND_API_KEY or SMTP_PASSWORD required)")
+    print(f"❌ No email service configured (need BREVO_API_KEY, RESEND_API_KEY, or SMTP_PASSWORD)")
     return False
 
 
