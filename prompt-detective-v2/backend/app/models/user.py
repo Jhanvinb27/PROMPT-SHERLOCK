@@ -20,8 +20,10 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_premium = Column(Boolean, default=False)  # Added is_premium field
     is_email_verified = Column(Boolean, default=False)  # Email verification status
+    is_admin = Column(Boolean, default=False)  # Admin flag - super user access
+    is_super_admin = Column(Boolean, default=False)  # Super admin - highest level access
     api_calls_used = Column(Integer, default=0)  # Added api_calls_used field
-    api_calls_limit = Column(Integer, default=100)  # Added api_calls_limit field
+    api_calls_limit = Column(Integer, default=100)  # Added api_calls_limit field (unlimited for admin: -1)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
