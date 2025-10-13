@@ -353,12 +353,21 @@ async def google_oauth_callback(code: str, redirect_uri: str, db: Session) -> To
 
 def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
     """Register new user and return tokens (requires email verification)"""
-    # Check if user exists
+    # Check if email already exists
     if db.query(User).filter(User.email == user_data.email).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
+    
+    # Check if username already exists
+    desired_username = user_data.username or user_data.email.split("@")[0]
+    if db.query(User).filter(User.username == desired_username).first():
+        # If username exists, append random suffix to make it unique
+        import random
+        import string
+        suffix = ''.join(random.choices(string.digits, k=4))
+        desired_username = f"{desired_username}{suffix}"
     
     # Validate password strength
     if len(user_data.password) < 8:
@@ -373,7 +382,7 @@ def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
         email=user_data.email,
         password_hash=hashed_password,
         full_name=user_data.full_name or user_data.email.split("@")[0],
-        username=user_data.username or user_data.email.split("@")[0],
+        username=desired_username,
         subscription_tier="free",
         is_active=True,
         is_premium=False,
@@ -382,9 +391,22 @@ def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
         api_calls_limit=50
     )
     
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        # Handle any database integrity errors
+        if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username or email already exists. Please try again."
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create user: {str(e)}"
+        )
     
     # Create tokens (user can login but should verify email)
     access_token = create_access_token(
