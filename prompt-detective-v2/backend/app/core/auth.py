@@ -336,6 +336,9 @@ async def google_oauth_callback(code: str, redirect_uri: str, db: Session) -> To
                 "username": user.username,
                 "is_active": user.is_active,
                 "is_premium": user.is_premium,
+                "is_email_verified": user.is_email_verified if hasattr(user, 'is_email_verified') else True,
+                "is_admin": user.is_admin if hasattr(user, 'is_admin') else False,
+                "is_super_admin": user.is_super_admin if hasattr(user, 'is_super_admin') else False,
                 "api_calls_limit": user.api_calls_limit,
                 "api_calls_used": user.api_calls_used,
                 "subscription_tier": user.subscription_tier,
@@ -428,6 +431,8 @@ def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
             "is_active": user.is_active,
             "is_premium": user.is_premium,
             "is_email_verified": user.is_email_verified,
+            "is_admin": user.is_admin if hasattr(user, 'is_admin') else False,
+            "is_super_admin": user.is_super_admin if hasattr(user, 'is_super_admin') else False,
             "api_calls_limit": user.api_calls_limit,
             "api_calls_used": user.api_calls_used,
             "subscription_tier": user.subscription_tier,
@@ -470,6 +475,8 @@ def login_user(db: Session, login_data: UserLogin) -> TokenResponse:
             "is_active": user.is_active,
             "is_premium": user.is_premium,
             "is_email_verified": user.is_email_verified if hasattr(user, 'is_email_verified') else True,
+            "is_admin": user.is_admin if hasattr(user, 'is_admin') else False,
+            "is_super_admin": user.is_super_admin if hasattr(user, 'is_super_admin') else False,
             "api_calls_limit": user.api_calls_limit,
             "api_calls_used": user.api_calls_used,
             "subscription_tier": user.subscription_tier,
@@ -501,7 +508,22 @@ def refresh_access_token(refresh_token: str, db: Session) -> TokenResponse:
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,  # Keep the same refresh token
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
+        user={
+            "id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "username": user.username,
+            "is_active": user.is_active,
+            "is_premium": user.is_premium,
+            "is_email_verified": user.is_email_verified if hasattr(user, 'is_email_verified') else True,
+            "is_admin": user.is_admin if hasattr(user, 'is_admin') else False,
+            "is_super_admin": user.is_super_admin if hasattr(user, 'is_super_admin') else False,
+            "api_calls_limit": user.api_calls_limit,
+            "api_calls_used": user.api_calls_used,
+            "subscription_tier": user.subscription_tier,
+            "created_at": user.created_at.isoformat() if user.created_at else ""
+        }
     )
 
 async def request_password_reset(db: Session, email: str) -> Dict[str, str]:

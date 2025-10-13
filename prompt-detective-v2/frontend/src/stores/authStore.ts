@@ -8,6 +8,9 @@ interface User {
   username?: string;
   is_active: boolean;
   is_premium: boolean;
+  is_email_verified?: boolean;
+  is_admin?: boolean;
+  is_super_admin?: boolean;
   api_calls_limit: number;
   api_calls_used: number;
   subscription_tier: 'free' | 'basic' | 'pro' | 'enterprise';

@@ -99,6 +99,8 @@ async def get_current_user_info(current_user: User = Depends(get_current_active_
         "full_name": current_user.full_name,
         "is_active": current_user.is_active,
         "is_premium": current_user.subscription_tier in ["pro", "enterprise"],
+        "is_admin": current_user.is_admin if hasattr(current_user, 'is_admin') else False,
+        "is_super_admin": current_user.is_super_admin if hasattr(current_user, 'is_super_admin') else False,
         "api_calls_limit": 150 if current_user.subscription_tier == "free" else 1000,
         "api_calls_used": 0,  # TODO: Get from usage tracking
         "subscription_tier": current_user.subscription_tier,
