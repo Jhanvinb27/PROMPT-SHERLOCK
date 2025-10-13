@@ -1,0 +1,41 @@
+## URGENT: Setup Resend Email API (Render blocks SMTP port 587)
+
+### Issue Fixed:
+- Render free tier blocks outbound SMTP connections on port 587
+- Implemented Resend API (HTTP-based, no port restrictions)
+- Code will try Resend first, then fall back to SMTP
+
+### Action Required:
+
+1. **Get Resend API Key (FREE - 100 emails/day)**
+   - Go to: https://resend.com
+   - Sign up with GitHub or Email
+   - Get your API key (starts with `re_`)
+
+2. **Add to Render Environment Variables**
+   - Go to: https://dashboard.render.com/
+   - Select: `prompt-detective-backend`
+   - Click: **Environment** tab
+   - Add variable:
+     ```
+     RESEND_API_KEY = re_your_actual_api_key_here
+     ```
+   - Click **Save Changes**
+
+3. **Configure Resend Domain (Optional but Recommended)**
+   - In Resend dashboard, add your domain or use `onboarding@resend.dev`
+   - Update `EMAIL_FROM_ADDRESS` in Render if using custom domain
+
+4. **Test**
+   - Wait 2-3 minutes for Render to redeploy
+   - Try signup/forgot password
+   - Check Render logs for: `✅ Email sent via Resend`
+
+### How It Works:
+- Priority 1: Resend API (works on Render)
+- Priority 2: SMTP fallback (for local development)
+- No code changes needed - just set the API key
+
+### Local Development:
+- SMTP will still work locally
+- Or add `RESEND_API_KEY` to your local `.env` file
