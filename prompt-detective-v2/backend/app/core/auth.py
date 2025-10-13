@@ -17,7 +17,10 @@ from google.auth.transport import requests as google_requests
 from .config import settings
 from ..database import get_db
 from ..models.user import User
-from ..services.email import send_password_reset_email
+from ..services.email_service import send_password_reset_otp_email
+from ..services.otp_service import (
+    create_otp, verify_otp, send_verification_otp, send_password_reset_otp
+)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -53,9 +56,21 @@ class GoogleOAuthRequest(BaseModel):
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
+class PasswordResetVerifyOTP(BaseModel):
+    email: EmailStr
+    otp_code: str
+
 class PasswordResetConfirm(BaseModel):
-    token: str
+    email: EmailStr
+    otp_code: str
     new_password: str
+
+class EmailVerificationRequest(BaseModel):
+    email: EmailStr
+
+class EmailVerificationConfirm(BaseModel):
+    email: EmailStr
+    otp_code: str
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash - supports both old and new formats"""
@@ -337,7 +352,7 @@ async def google_oauth_callback(code: str, redirect_uri: str, db: Session) -> To
         )
 
 def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
-    """Register new user and return tokens"""
+    """Register new user and return tokens (requires email verification)"""
     # Check if user exists
     if db.query(User).filter(User.email == user_data.email).first():
         raise HTTPException(
@@ -352,7 +367,7 @@ def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
             detail="Password must be at least 8 characters long"
         )
     
-    # Create user
+    # Create user (email not verified yet)
     hashed_password = get_password_hash(user_data.password)
     user = User(
         email=user_data.email,
@@ -362,6 +377,7 @@ def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
         subscription_tier="free",
         is_active=True,
         is_premium=False,
+        is_email_verified=False,  # Requires verification
         api_calls_used=0,
         api_calls_limit=50
     )
@@ -370,7 +386,7 @@ def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
     db.commit()
     db.refresh(user)
     
-    # Create tokens
+    # Create tokens (user can login but should verify email)
     access_token = create_access_token(
         data={"sub": user.email, "user_id": user.id}
     )
@@ -389,6 +405,7 @@ def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
             "username": user.username,
             "is_active": user.is_active,
             "is_premium": user.is_premium,
+            "is_email_verified": user.is_email_verified,
             "api_calls_limit": user.api_calls_limit,
             "api_calls_used": user.api_calls_used,
             "subscription_tier": user.subscription_tier,
@@ -430,6 +447,7 @@ def login_user(db: Session, login_data: UserLogin) -> TokenResponse:
             "username": user.username,
             "is_active": user.is_active,
             "is_premium": user.is_premium,
+            "is_email_verified": user.is_email_verified if hasattr(user, 'is_email_verified') else True,
             "api_calls_limit": user.api_calls_limit,
             "api_calls_used": user.api_calls_used,
             "subscription_tier": user.subscription_tier,
@@ -465,33 +483,50 @@ def refresh_access_token(refresh_token: str, db: Session) -> TokenResponse:
     )
 
 async def request_password_reset(db: Session, email: str) -> Dict[str, str]:
-    """Request password reset"""
+    """Request password reset OTP via email"""
     user = db.query(User).filter(User.email == email).first()
     if not user:
         # Don't reveal if email exists
-        return {"message": "If email exists, reset link has been sent"}
+        return {"message": "If email exists, reset OTP has been sent"}
     
-    reset_token = create_password_reset_token(email)
+    # Send password reset OTP
+    await send_password_reset_otp(db, user)
     
-    # TODO: Send email with reset link
-    # await send_password_reset_email(email, reset_token)
-    
-    return {"message": "If email exists, reset link has been sent"}
+    return {"message": "If email exists, reset OTP has been sent"}
 
-def reset_password(db: Session, token: str, new_password: str) -> Dict[str, str]:
-    """Reset password using token"""
-    email = verify_password_reset_token(token)
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired reset token"
-        )
-    
+async def verify_password_reset_otp(db: Session, email: str, otp_code: str) -> Dict[str, str]:
+    """Verify password reset OTP"""
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
+        )
+    
+    is_valid, error = verify_otp(db, user.id, otp_code, "password_reset")
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error or "Invalid OTP"
+        )
+    
+    return {"message": "OTP verified successfully"}
+
+def reset_password(db: Session, email: str, otp_code: str, new_password: str) -> Dict[str, str]:
+    """Reset password using OTP"""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Verify OTP again
+    is_valid, error = verify_otp(db, user.id, otp_code, "password_reset")
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error or "Invalid OTP"
         )
     
     # Validate new password
@@ -508,3 +543,57 @@ def reset_password(db: Session, token: str, new_password: str) -> Dict[str, str]
     db.commit()
     
     return {"message": "Password updated successfully"}
+
+async def request_email_verification(db: Session, email: str) -> Dict[str, str]:
+    """Send email verification OTP"""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if user.is_email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already verified"
+        )
+    
+    # Send verification OTP
+    await send_verification_otp(db, user)
+    
+    return {"message": "Verification OTP sent to your email"}
+
+async def verify_email(db: Session, email: str, otp_code: str) -> Dict[str, str]:
+    """Verify email using OTP"""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if user.is_email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already verified"
+        )
+    
+    # Verify OTP
+    is_valid, error = verify_otp(db, user.id, otp_code, "email_verification")
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error or "Invalid OTP"
+        )
+    
+    # Mark email as verified
+    user.is_email_verified = True
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    
+    # Send welcome email
+    from ..services.email_service import send_welcome_email
+    await send_welcome_email(user.email, user.full_name)
+    
+    return {"message": "Email verified successfully"}

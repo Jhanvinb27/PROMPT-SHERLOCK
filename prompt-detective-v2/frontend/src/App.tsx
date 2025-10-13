@@ -15,6 +15,8 @@ import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import UsageHistoryPage from './pages/UsageHistoryPage';
 import DebugPage from './pages/DebugPage';
+import EmailVerificationPage from './pages/EmailVerificationPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 
 // Components
 import Layout from './components/Layout';
@@ -58,6 +60,8 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
+              <Route path="/verify-email" element={<EmailVerificationPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/pricing" element={<PricingPage />} />
               <Route path="/coming-soon" element={<ComingSoonPage />} />
 

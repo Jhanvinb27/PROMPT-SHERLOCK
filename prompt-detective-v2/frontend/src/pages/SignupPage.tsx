@@ -35,7 +35,8 @@ const SignupPage: React.FC = () => {
         full_name: formData.fullName,
         username: formData.username
       });
-      navigate('/dashboard');
+      // Redirect to email verification page
+      navigate('/verify-email', { state: { email: formData.email } });
     } catch (err: any) {
       setError(err.message || 'Signup failed');
     } finally {

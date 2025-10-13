@@ -187,20 +187,21 @@ prompt-detective-v2/
 ```bash
 # Backend (.env)
 SECRET_KEY=your-secret-key-change-in-production
-DATABASE_URL=postgresql://user:password@localhost/prompt_detective
-REDIS_URL=redis://localhost:6379
+DATABASE_URL=sqlite:///./app_data.sqlite3  # or PostgreSQL for production
 GROQ_API_KEY=your-groq-api-key
+RESEND_API_KEY=your-resend-api-key  # For email OTP verification
 GOOGLE_CLIENT_ID=your-google-oauth-client-id
 GOOGLE_CLIENT_SECRET=your-google-oauth-secret
-SMTP_HOST=smtp.sendgrid.net
-SMTP_USERNAME=apikey
-SMTP_PASSWORD=your-sendgrid-api-key
-EMAIL_FROM=noreply@promptdetective.com
+FRONTEND_URL=http://localhost:3000
+ALLOWED_ORIGINS=http://localhost:3000
 
 # Frontend (.env)
-VITE_API_URL=http://localhost:8000
+VITE_API_URL=http://localhost:8000/api/v1
 VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id
+VITE_APP_TITLE=Prompt Detective
 ```
+
+See `ENV_QUICK_REFERENCE.md` for complete list and `ENV_MIGRATION_GUIDE.md` for setup instructions.
 
 ## Deployment
 
@@ -208,7 +209,8 @@ VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id
 - **Backend**: Railway, Render, or Heroku
 - **Frontend**: Vercel, Netlify, or Cloudflare Pages
 - **Database**: Railway PostgreSQL, ElephantSQL, or Neon
-- **Redis**: Railway Redis, Redis Cloud, or Upstash
+- **File Storage**: Cloudinary (free tier: 25GB)
+- **Email**: Resend (free tier: 3,000 emails/month)
 
 ### Docker Support (Optional)
 ```bash

@@ -6,9 +6,11 @@ from sqlalchemy.orm import Session
 
 from ...core.auth import (
     UserCreate, UserLogin, TokenResponse, GoogleOAuthRequest,
-    PasswordResetRequest, PasswordResetConfirm,
+    PasswordResetRequest, PasswordResetVerifyOTP, PasswordResetConfirm,
+    EmailVerificationRequest, EmailVerificationConfirm,
     signup_user, login_user, refresh_access_token,
-    request_password_reset, reset_password,
+    request_password_reset, verify_password_reset_otp, reset_password,
+    request_email_verification, verify_email,
     get_current_active_user, google_oauth_callback
 )
 from ...database import get_db
@@ -53,16 +55,40 @@ async def request_password_reset_endpoint(
     reset_data: PasswordResetRequest,
     db: Session = Depends(get_db)
 ):
-    """Request password reset email"""
+    """Request password reset OTP via email"""
     return await request_password_reset(db, reset_data.email)
+
+@router.post("/password-reset/verify-otp")
+async def verify_password_reset_otp_endpoint(
+    verify_data: PasswordResetVerifyOTP,
+    db: Session = Depends(get_db)
+):
+    """Verify password reset OTP"""
+    return await verify_password_reset_otp(db, verify_data.email, verify_data.otp_code)
 
 @router.post("/password-reset/confirm")
 async def reset_password_endpoint(
     reset_data: PasswordResetConfirm,
     db: Session = Depends(get_db)
 ):
-    """Confirm password reset with token"""
-    return reset_password(db, reset_data.token, reset_data.new_password)
+    """Confirm password reset with OTP and new password"""
+    return reset_password(db, reset_data.email, reset_data.otp_code, reset_data.new_password)
+
+@router.post("/email-verification/request")
+async def request_email_verification_endpoint(
+    verify_data: EmailVerificationRequest,
+    db: Session = Depends(get_db)
+):
+    """Request email verification OTP"""
+    return await request_email_verification(db, verify_data.email)
+
+@router.post("/email-verification/verify")
+async def verify_email_endpoint(
+    verify_data: EmailVerificationConfirm,
+    db: Session = Depends(get_db)
+):
+    """Verify email with OTP"""
+    return await verify_email(db, verify_data.email, verify_data.otp_code)
 
 @router.get("/me")
 async def get_current_user_info(current_user: User = Depends(get_current_active_user)):

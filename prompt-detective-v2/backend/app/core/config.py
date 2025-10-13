@@ -20,9 +20,6 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/prompt_detective")
     
-    # Redis (for background tasks)
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
-    
     # File Storage
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "./uploads")
     MAX_UPLOAD_SIZE: int = 100 * 1024 * 1024  # 100MB
@@ -39,12 +36,18 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: Optional[str] = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET: Optional[str] = os.getenv("GOOGLE_CLIENT_SECRET")
     
-    # Email (for password reset)
-    SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
+    # Email Service (Gmail SMTP)
+    EMAIL_PROVIDER: str = os.getenv("EMAIL_PROVIDER", "gmail")
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-    SMTP_USERNAME: Optional[str] = os.getenv("SMTP_USERNAME")
-    SMTP_PASSWORD: Optional[str] = os.getenv("SMTP_PASSWORD")
-    EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@promptdetective.com")
+    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "tryreverseai@gmail.com")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+    EMAIL_FROM_ADDRESS: str = os.getenv("EMAIL_FROM_ADDRESS", "tryreverseai@gmail.com")
+    EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "Reverse AI")
+    
+    # Frontend URL (for email links and OAuth redirects)
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
@@ -52,7 +55,7 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: str = os.getenv(
         "ALLOWED_ORIGINS", 
-        "http://localhost:3000,http://localhost:5173,https://your-frontend-domain.com"
+        "http://localhost:3000,https://your-frontend-domain.com"
     )
     
     @property

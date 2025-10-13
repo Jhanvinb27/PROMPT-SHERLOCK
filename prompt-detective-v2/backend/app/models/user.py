@@ -19,6 +19,7 @@ class User(Base):
     subscription_tier = Column(String, default="free")  # Changed from 'role' to 'subscription_tier'
     is_active = Column(Boolean, default=True)
     is_premium = Column(Boolean, default=False)  # Added is_premium field
+    is_email_verified = Column(Boolean, default=False)  # Email verification status
     api_calls_used = Column(Integer, default=0)  # Added api_calls_used field
     api_calls_limit = Column(Integer, default=100)  # Added api_calls_limit field
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -29,6 +30,7 @@ class User(Base):
     jobs = relationship("AnalysisJob", back_populates="user")
     usage_logs = relationship("UsageLog", back_populates="user")
     subscriptions = relationship("Subscription", back_populates="user")
+    otp_codes = relationship("OTPCode", back_populates="user")
 
 class APIKey(Base):
     __tablename__ = "api_keys"
@@ -101,3 +103,17 @@ class AdminNote(Base):
     admin_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     note = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+class OTPCode(Base):
+    __tablename__ = "otp_codes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    code = Column(String(6), nullable=False)  # 6-digit OTP
+    otp_type = Column(String, nullable=False)  # email_verification, password_reset
+    is_used = Column(Boolean, default=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    user = relationship("User", back_populates="otp_codes")

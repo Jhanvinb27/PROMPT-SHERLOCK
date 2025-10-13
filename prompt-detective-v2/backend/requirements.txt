@@ -6,7 +6,6 @@ python-multipart
 
 # Database
 sqlalchemy
-alembic
 psycopg2-binary
 
 # Authentication & Security
@@ -18,15 +17,12 @@ google-auth
 google-auth-oauthlib
 google-auth-httplib2
 
-# File handling & analysis (from existing codebase)
+# File handling & analysis
 pillow
 opencv-python-headless
 numpy
-scipy
-scikit-image
-scikit-learn
-imageio
-ffmpeg-python
+scipy  # Used for: distance calculations, entropy
+scikit-image  # Used for: SSIM, LBP, Sobel filters
 
 # AI/ML
 groq
