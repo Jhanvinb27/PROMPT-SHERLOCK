@@ -13,8 +13,10 @@ sys.path.insert(0, str(backend_root))
 
 from sqlalchemy import create_engine, text, inspect
 from app.database import Base, engine
-from app.models.user import User, OTPCode
-from app.models.analysis import Analysis
+from app.models.user import (
+    User, OTPCode, APIKey, AnalysisJob, UsageLog, 
+    Subscription, AdminNote
+)
 
 def reset_database():
     """Drop all tables and recreate them"""
