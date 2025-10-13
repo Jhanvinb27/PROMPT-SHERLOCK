@@ -13,7 +13,7 @@ if (!GOOGLE_CLIENT_ID) {
 }
 
 // Start keep-alive service for backend on free tier
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 if (import.meta.env.PROD) {
   // Only run keep-alive in production (when deployed)
   keepAliveService.start(apiBaseUrl);
