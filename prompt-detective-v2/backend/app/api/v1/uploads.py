@@ -11,7 +11,7 @@ from ...core.auth import get_current_active_user
 from ...database import get_db
 from ...models.user import User, AnalysisJob, UsageLog
 from ...services.analysis import queue_analysis_job
-from ...services.storage import save_upload_file
+from ...services.storage import save_upload_file, cleanup_temp_file, get_file_size
 from ...core.config import settings
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
@@ -54,11 +54,8 @@ async def upload_file(
         )
     
     try:
-        # Save uploaded file - returns storage metadata dict
-        storage_info = await save_upload_file(file, current_user.id)
-        file_url = storage_info.get("file_url") or storage_info.get("actual_path")
-        public_id = storage_info.get("public_id")
-        temp_path = storage_info.get("temp_path")
+        # Save uploaded file - returns (file_url, public_id, temp_path)
+        file_url, public_id, temp_path = await save_upload_file(file, current_user.id)
         
         # Create analysis job
         job = AnalysisJob(
@@ -93,19 +90,8 @@ async def upload_file(
         print(f"✅ Usage logged for user {current_user.id}: analyze action at {usage_log.timestamp}")
         
         # Queue background analysis AFTER usage logging
-        # Provide both cloud metadata and temp path so downstream processing can
-        # analyse locally while still knowing the persistent cloud location.
-        queue_analysis_job(
-            job.id,
-            {
-                **storage_info,
-                "cloud_url": storage_info.get("file_url"),
-                "file_url": storage_info.get("file_url"),
-                "public_id": public_id,
-                "temp_path": temp_path,
-            },
-            content_type
-        )
+        # Use temp_path for local analysis (actual file), file_url is stored in DB
+        queue_analysis_job(job.id, temp_path, content_type)
         
         return {
             "job_id": job.id,

@@ -11,9 +11,13 @@ interface User {
   is_email_verified?: boolean;
   is_admin?: boolean;
   is_super_admin?: boolean;
+  is_on_trial?: boolean;
+  trial_started_at?: string | null;
+  trial_ends_at?: string | null;
+  has_used_trial?: boolean;
   api_calls_limit: number;
   api_calls_used: number;
-  subscription_tier: 'free' | 'basic' | 'pro' | 'enterprise';
+  subscription_tier: 'free' | 'basic' | 'starter' | 'pro' | 'business' | 'enterprise' | 'admin';
   created_at: string;
 }
 

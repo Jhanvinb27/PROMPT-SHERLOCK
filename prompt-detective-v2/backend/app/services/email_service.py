@@ -638,3 +638,540 @@ async def send_welcome_email(email: str, name: str) -> bool:
     if not sent:
         print("⚠️ Welcome email failed to send")
     return sent
+
+
+async def send_trial_started_email(email: str, name: str, plan: str, trial_ends: "datetime") -> bool:
+    """Send trial started confirmation email."""
+    from datetime import datetime, timezone
+    
+    subject = f"🎉 Your {plan.title()} Trial Has Started - 3 Days of Premium Features!"
+    
+    # Format trial end time
+    trial_ends_str = trial_ends.strftime("%B %d, %Y at %I:%M %p IST")
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 20px; background-color: #F9FAFB;">
+        {get_email_template_header()}
+        <!-- Content -->
+        <div style="padding: 40px 30px; background-color: #ffffff;">
+            <h2 style="color: #111827; margin: 0 0 20px 0; font-size: 28px; text-align: center;">
+                🚀 Your {plan.title()} Trial is Live!
+            </h2>
+            <p style="color: #4B5563; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Hi <strong>{name}</strong>,
+            </p>
+            <p style="color: #4B5563; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Great news! Your 3-day free trial of the <strong>{plan.title()} Plan</strong> has started.
+                Enjoy all premium features with no credit card required! 🎉
+            </p>
+            <!-- Trial Timer -->
+            <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 30px; border-radius: 12px; margin: 30px 0; text-align: center;">
+                <p style="color: #D1FAE5; font-size: 14px; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 2px;">
+                    Trial Active Until
+                </p>
+                <p style="color: #ffffff; font-size: 24px; font-weight: bold; margin: 0;">
+                    {trial_ends_str}
+                </p>
+                <p style="color: #D1FAE5; font-size: 14px; margin: 15px 0 0 0;">
+                    ⏰ After 3 days, you'll automatically be moved to the Free plan
+                </p>
+            </div>
+            <!-- What You Get -->
+            <div style="background-color: #F9FAFB; padding: 25px; border-radius: 8px; margin: 30px 0;">
+                <h3 style="color: #111827; margin: 0 0 15px 0; font-size: 18px;">
+                    ✨ Your {plan.title()} Trial Includes:
+                </h3>
+                <ul style="color: #4B5563; font-size: 15px; line-height: 2; margin: 0; padding-left: 20px;">
+                    {"<li>📸 15 analyses per day</li>" if plan == "starter" else ""}
+                    {"<li>📸 50 analyses per day</li>" if plan == "pro" else ""}
+                    {"<li>📸 150 analyses per day</li>" if plan == "business" else ""}
+                    <li>🎥 Video analysis support</li>
+                    <li>⚡ Priority processing speed</li>
+                    <li>🎨 Advanced prompt outputs</li>
+                    {"<li>🔌 API access (5,000 calls/month)</li>" if plan in ["pro", "business"] else ""}
+                    {"<li>🔌 API access (20,000 calls/month)</li>" if plan == "business" else ""}
+                    {"<li>👨‍💼 Dedicated account manager</li>" if plan == "business" else ""}
+                    <li>💬 Priority email support</li>
+                </ul>
+            </div>
+            <!-- CTA -->
+            <div style="text-align: center; margin: 40px 0;">
+                <a href="https://prompt-detective.vercel.app/dashboard"
+                   style="display: inline-block; background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+                          color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 10px;
+                          font-weight: bold; font-size: 16px; margin: 10px;">
+                    🎯 Start Analyzing Now
+                </a>
+            </div>
+            <!-- Important Notice -->
+            <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 20px; border-radius: 4px; margin: 30px 0;">
+                <h4 style="color: #92400E; margin: 0 0 10px 0; font-size: 16px;">
+                    📝 Important: What Happens After Trial?
+                </h4>
+                <p style="color: #78350F; font-size: 14px; margin: 0; line-height: 1.6;">
+                    <strong>No automatic charges!</strong> After 3 days, you'll be automatically moved to our Free plan
+                    (5 analyses/day). You can upgrade anytime to keep premium features - and we're offering <strong>launch pricing
+                    (33% OFF)</strong> for early adopters like you! 🎁
+                </p>
+            </div>
+        </div>
+        {get_email_template_footer()}
+    </body>
+    </html>
+    """
+    
+    text_content = f"""
+    Your {plan.title()} Trial is Live!
+
+    Hi {name},
+
+    Your 3-day free trial of the {plan.title()} Plan has started.
+
+    Trial Active Until: {trial_ends_str}
+
+    After 3 days, you'll automatically be moved to the Free plan.
+
+    What You Get:
+    - Enhanced daily analyses
+    - Video analysis support
+    - Priority processing speed
+    - Priority email support
+
+    No automatic charges! Upgrade anytime to keep premium features.
+
+    © 2025 Prompt Detective. All rights reserved.
+    """
+    
+    return await _dispatch_email(
+        to_email=email,
+        subject=subject,
+        html=html_content,
+        text=text_content,
+    )
+
+
+async def send_trial_expiring_soon_email(email: str, name: str, plan: str, hours_remaining: int, trial_ends: "datetime") -> bool:
+    """Send trial expiring soon notification."""
+    subject = f"⏰ Your {plan.title()} Trial Expires in {hours_remaining} Hours"
+    
+    trial_ends_str = trial_ends.strftime("%B %d at %I:%M %p IST")
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 20px; background-color: #F9FAFB;">
+        {get_email_template_header()}
+        <!-- Content -->
+        <div style="padding: 40px 30px; background-color: #ffffff;">
+            <h2 style="color: #111827; margin: 0 0 20px 0; font-size: 28px; text-align: center;">
+                ⏰ Trial Ending Soon
+            </h2>
+            <p style="color: #4B5563; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Hi <strong>{name}</strong>,
+            </p>
+            <p style="color: #4B5563; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Your {plan.title()} trial is ending soon! You have only <strong>{hours_remaining} hours</strong> left
+                to enjoy premium features before automatically moving to the Free plan.
+            </p>
+            <!-- Urgency Timer -->
+            <div style="background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); padding: 30px; border-radius: 12px; margin: 30px 0; text-align: center;">
+                <p style="color: #FEF3C7; font-size: 16px; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 2px;">
+                    Trial Ends On
+                </p>
+                <p style="color: #ffffff; font-size: 28px; font-weight: bold; margin: 0;">
+                    {trial_ends_str}
+                </p>
+                <p style="color: #FEF3C7; font-size: 18px; font-weight: bold; margin: 15px 0 0 0;">
+                    ⏳ Only {hours_remaining} Hours Left!
+                </p>
+            </div>
+            <!-- Special Offer -->
+            <div style="background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%); padding: 30px; border-radius: 12px; margin: 30px 0; text-align: center;">
+                <h3 style="color: #ffffff; margin: 0 0 15px 0; font-size: 24px;">
+                    🎁 Exclusive Launch Offer
+                </h3>
+                <p style="color: #E9D5FF; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
+                    Upgrade now and <strong>lock in 33% OFF forever!</strong><br>
+                    First 500 users only - Don't miss out!
+                </p>
+                <div style="background-color: rgba(255,255,255,0.2); padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    {"<p style='color: #ffffff; font-size: 20px; margin: 0;'><strike>₹299/mo</strike> → <strong>₹199/mo</strong></p>" if plan == "starter" else ""}
+                    {"<p style='color: #ffffff; font-size: 20px; margin: 0;'><strike>₹699/mo</strike> → <strong>₹499/mo</strong></p>" if plan == "pro" else ""}
+                    {"<p style='color: #ffffff; font-size: 20px; margin: 0;'><strike>₹1,499/mo</strike> → <strong>₹999/mo</strong></p>" if plan == "business" else ""}
+                    <p style="color: #E9D5FF; font-size: 14px; margin: 10px 0 0 0;">
+                        💎 Pay this price forever - even when others pay more!
+                    </p>
+                </div>
+            </div>
+            <!-- CTA -->
+            <div style="text-align: center; margin: 40px 0;">
+                <a href="https://prompt-detective.vercel.app/pricing"
+                   style="display: inline-block; background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                          color: #ffffff; text-decoration: none; padding: 18px 50px; border-radius: 10px;
+                          font-weight: bold; font-size: 18px; margin: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    🚀 Lock In My Discount
+                </a>
+            </div>
+            <!-- What You'll Keep -->
+            <div style="background-color: #F9FAFB; padding: 25px; border-radius: 8px; margin: 30px 0;">
+                <h3 style="color: #111827; margin: 0 0 15px 0; font-size: 18px;">
+                    🎯 Keep These Premium Features:
+                </h3>
+                <ul style="color: #4B5563; font-size: 15px; line-height: 2; margin: 0; padding-left: 20px;">
+                    {"<li>📸 15 analyses/day (vs 5 on Free)</li>" if plan == "starter" else ""}
+                    {"<li>📸 50 analyses/day (vs 5 on Free)</li>" if plan == "pro" else ""}
+                    {"<li>📸 150 analyses/day (vs 5 on Free)</li>" if plan == "business" else ""}
+                    <li>🎥 Video analysis (not on Free)</li>
+                    <li>⚡ 5x faster processing</li>
+                    <li>🎨 Advanced AI prompts</li>
+                    <li>💬 Priority support</li>
+                </ul>
+            </div>
+        </div>
+        {get_email_template_footer()}
+    </body>
+    </html>
+    """
+    
+    text_content = f"""
+    Trial Ending Soon
+
+    Hi {name},
+
+    Your {plan.title()} trial is ending soon! Only {hours_remaining} hours left.
+
+    Trial Ends On: {trial_ends_str}
+
+    Exclusive Launch Offer:
+    Upgrade now and lock in 33% OFF forever!
+
+    Keep Premium Features:
+    - Enhanced daily analyses
+    - Video analysis support
+    - 5x faster processing
+    - Priority support
+
+    Upgrade now: https://prompt-detective.vercel.app/pricing
+
+    © 2025 Prompt Detective. All rights reserved.
+    """
+    
+    return await _dispatch_email(
+        to_email=email,
+        subject=subject,
+        html=html_content,
+        text=text_content,
+    )
+
+
+async def send_trial_expired_email(email: str, name: str, trial_plan: str) -> bool:
+    """Send trial expired notification."""
+    subject = "Your Trial Has Ended - You're Now on the Free Plan"
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 20px; background-color: #F9FAFB;">
+        {get_email_template_header()}
+        <!-- Content -->
+        <div style="padding: 40px 30px; background-color: #ffffff;">
+            <h2 style="color: #111827; margin: 0 0 20px 0; font-size: 24px; text-align: center;">
+                Your {trial_plan.title()} Trial Has Ended
+            </h2>
+            <p style="color: #4B5563; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Hi <strong>{name}</strong>,
+            </p>
+            <p style="color: #4B5563; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Your 3-day trial of the {trial_plan.title()} Plan has ended. We hope you enjoyed exploring our premium features!
+                You've been automatically moved to our <strong>Free Plan</strong> and can continue using Prompt Detective.
+            </p>
+            <!-- Current Plan -->
+            <div style="background-color: #F9FAFB; padding: 25px; border-radius: 8px; margin: 30px 0; text-align: center;">
+                <h3 style="color: #111827; margin: 0 0 15px 0; font-size: 18px;">
+                    📊 Your Current Plan: Free
+                </h3>
+                <ul style="color: #4B5563; font-size: 15px; line-height: 2; margin: 0; padding-left: 20px; text-align: left; display: inline-block;">
+                    <li>✅ 5 analyses per day</li>
+                    <li>✅ Image-to-prompt conversion</li>
+                    <li>✅ Standard processing speed</li>
+                    <li>✅ Email support</li>
+                </ul>
+            </div>
+            <!-- Upgrade Offer -->
+            <div style="background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%); padding: 30px; border-radius: 12px; margin: 30px 0; text-align: center;">
+                <h3 style="color: #ffffff; margin: 0 0 15px 0; font-size: 24px;">
+                    🎁 Last Chance: Launch Pricing
+                </h3>
+                <p style="color: #E9D5FF; font-size: 16px; margin: 0 0 20px 0;">
+                    Lock in <strong>33% OFF forever</strong> - First 500 users only!
+                </p>
+                <a href="https://prompt-detective.vercel.app/pricing"
+                   style="display: inline-block; background-color: #ffffff; color: #8B5CF6; text-decoration: none;
+                          padding: 16px 40px; border-radius: 10px; font-weight: bold; font-size: 16px; margin: 10px;">
+                    💰 View Plans & Upgrade
+                </a>
+            </div>
+        </div>
+        {get_email_template_footer()}
+    </body>
+    </html>
+    """
+    
+    text_content = f"""
+    Your {trial_plan.title()} Trial Has Ended
+
+    Hi {name},
+
+    Your 3-day trial has ended. You've been moved to our Free Plan.
+
+    Your Current Plan: Free
+    - 5 analyses per day
+    - Image-to-prompt conversion
+    - Email support
+
+    Last Chance: Lock in 33% OFF forever!
+    First 500 users only.
+
+    Upgrade: https://prompt-detective.vercel.app/pricing
+
+    © 2025 Prompt Detective. All rights reserved.
+    """
+    
+    return await _dispatch_email(
+        to_email=email,
+        subject=subject,
+        html=html_content,
+        text=text_content,
+    )
+
+
+async def send_subscription_confirmation_email(
+    email: str,
+    name: str,
+    plan: str,
+    amount: float,
+    billing_cycle: str,
+    next_billing_date: "datetime"
+) -> bool:
+    """Send subscription purchase confirmation."""
+    from datetime import datetime
+    
+    subject = f"🎉 Welcome to {plan.title()} Plan - Subscription Activated!"
+    
+    next_billing_str = next_billing_date.strftime("%B %d, %Y")
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 20px; background-color: #F9FAFB;">
+        {get_email_template_header()}
+        <!-- Content -->
+        <div style="padding: 40px 30px; background-color: #ffffff;">
+            <h2 style="color: #111827; margin: 0 0 20px 0; font-size: 28px; text-align: center;">
+                🎉 Subscription Activated!
+            </h2>
+            <p style="color: #4B5563; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Hi <strong>{name}</strong>,
+            </p>
+            <p style="color: #4B5563; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Thank you for subscribing! Your <strong>{plan.title()} Plan</strong> is now active.
+                Welcome to the premium experience! 🚀
+            </p>
+            <!-- Payment Receipt -->
+            <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 30px; border-radius: 12px; margin: 30px 0;">
+                <h3 style="color: #ffffff; margin: 0 0 20px 0; font-size: 20px; text-align: center;">
+                    📄 Payment Receipt
+                </h3>
+                <div style="background-color: rgba(255,255,255,0.2); padding: 20px; border-radius: 8px;">
+                    <table style="width: 100%; color: #ffffff;">
+                        <tr>
+                            <td style="padding: 10px 0; font-size: 14px;">Plan:</td>
+                            <td style="padding: 10px 0; text-align: right; font-weight: bold; font-size: 14px;">{plan.title()} - {billing_cycle.title()}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; font-size: 14px;">Amount Paid:</td>
+                            <td style="padding: 10px 0; text-align: right; font-weight: bold; font-size: 18px;">₹{amount}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; font-size: 14px;">Next Billing:</td>
+                            <td style="padding: 10px 0; text-align: right; font-weight: bold; font-size: 14px;">{next_billing_str}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <!-- Plan Features -->
+            <div style="background-color: #F9FAFB; padding: 25px; border-radius: 8px; margin: 30px 0;">
+                <h3 style="color: #111827; margin: 0 0 15px 0; font-size: 18px;">
+                    ✨ Your {plan.title()} Plan Includes:
+                </h3>
+                <ul style="color: #4B5563; font-size: 15px; line-height: 2; margin: 0; padding-left: 20px;">
+                    {"<li>📸 15 analyses per day</li>" if plan == "starter" else ""}
+                    {"<li>📸 50 analyses per day</li>" if plan == "pro" else ""}
+                    {"<li>📸 150 analyses per day</li>" if plan == "business" else ""}
+                    <li>🎥 Video analysis support</li>
+                    <li>⚡ Priority processing speed</li>
+                    <li>🎨 Advanced prompt outputs</li>
+                    {"<li>🔌 API access (5,000 calls/month)</li>" if plan in ["pro", "business"] else ""}
+                    {"<li>🔌 API access (20,000 calls/month)</li>" if plan == "business" else ""}
+                    <li>💬 Priority email support</li>
+                    {"<li>👨‍💼 Dedicated account manager</li>" if plan == "business" else ""}
+                </ul>
+            </div>
+            <!-- CTA -->
+            <div style="text-align: center; margin: 40px 0;">
+                <a href="https://prompt-detective.vercel.app/dashboard"
+                   style="display: inline-block; background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+                          color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 10px;
+                          font-weight: bold; font-size: 16px; margin: 10px;">
+                    🎯 Go to Dashboard
+                </a>
+            </div>
+        </div>
+        {get_email_template_footer()}
+    </body>
+    </html>
+    """
+    
+    text_content = f"""
+    Subscription Activated!
+
+    Hi {name},
+
+    Your {plan.title()} Plan is now active!
+
+    Payment Receipt:
+    - Plan: {plan.title()} - {billing_cycle.title()}
+    - Amount Paid: ₹{amount}
+    - Next Billing: {next_billing_str}
+
+    Your plan includes:
+    - Enhanced daily analyses
+    - Video analysis support
+    - Priority processing
+    - Priority email support
+
+    Start now: https://prompt-detective.vercel.app/dashboard
+
+    © 2025 Prompt Detective. All rights reserved.
+    """
+    
+    return await _dispatch_email(
+        to_email=email,
+        subject=subject,
+        html=html_content,
+        text=text_content,
+    )
+
+
+async def send_payment_success_email(
+    email: str,
+    name: str,
+    amount: float,
+    description: str,
+    valid_until: "datetime"
+) -> bool:
+    """Send payment success email for credit packs."""
+    from datetime import datetime
+    
+    subject = "💳 Payment Successful - Credit Pack Activated!"
+    
+    valid_until_str = valid_until.strftime("%B %d, %Y")
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 20px; background-color: #F9FAFB;">
+        {get_email_template_header()}
+        <!-- Content -->
+        <div style="padding: 40px 30px; background-color: #ffffff;">
+            <h2 style="color: #111827; margin: 0 0 20px 0; font-size: 28px; text-align: center;">
+                💳 Payment Successful!
+            </h2>
+            <p style="color: #4B5563; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Hi <strong>{name}</strong>,
+            </p>
+            <p style="color: #4B5563; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Your payment has been successfully processed. Your credit pack is now active! 🎉
+            </p>
+            <!-- Payment Details -->
+            <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 30px; border-radius: 12px; margin: 30px 0;">
+                <h3 style="color: #ffffff; margin: 0 0 20px 0; font-size: 20px; text-align: center;">
+                    📄 Payment Receipt
+                </h3>
+                <div style="background-color: rgba(255,255,255,0.2); padding: 20px; border-radius: 8px;">
+                    <table style="width: 100%; color: #ffffff;">
+                        <tr>
+                            <td style="padding: 10px 0; font-size: 14px;">Purchase:</td>
+                            <td style="padding: 10px 0; text-align: right; font-weight: bold; font-size: 14px;">{description}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; font-size: 14px;">Amount Paid:</td>
+                            <td style="padding: 10px 0; text-align: right; font-weight: bold; font-size: 18px;">₹{amount}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; font-size: 14px;">Valid Until:</td>
+                            <td style="padding: 10px 0; text-align: right; font-weight: bold; font-size: 14px;">{valid_until_str}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <!-- CTA -->
+            <div style="text-align: center; margin: 40px 0;">
+                <a href="https://prompt-detective.vercel.app/dashboard"
+                   style="display: inline-block; background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+                          color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 10px;
+                          font-weight: bold; font-size: 16px; margin: 10px;">
+                    🎯 Start Analyzing
+                </a>
+            </div>
+        </div>
+        {get_email_template_footer()}
+    </body>
+    </html>
+    """
+    
+    text_content = f"""
+    Payment Successful!
+
+    Hi {name},
+
+    Your payment has been successfully processed.
+
+    Payment Receipt:
+    - Purchase: {description}
+    - Amount Paid: ₹{amount}
+    - Valid Until: {valid_until_str}
+
+    Start now: https://prompt-detective.vercel.app/dashboard
+
+    © 2025 Prompt Detective. All rights reserved.
+    """
+    
+    return await _dispatch_email(
+        to_email=email,
+        subject=subject,
+        html=html_content,
+        text=text_content,
+    )

@@ -19,7 +19,13 @@ def run_migrations():
     
     # Skip migrations for SQLite (local development)
     if DATABASE_URL.startswith("sqlite"):
-        print("ℹ️  SQLite detected, skipping auto-migrations")
+        print("ℹ️  SQLite detected, running SQLite-specific migrations")
+        try:
+            # Import and run SQLite migration
+            from migrations.run_sqlite_migration import run_sqlite_migration
+            run_sqlite_migration()
+        except Exception as e:
+            print(f"⚠️  SQLite migration warning: {e}")
         return
     
     # Handle Render's postgres:// URL (needs to be postgresql://)
@@ -50,8 +56,15 @@ def run_migrations():
                 """))
                 conn.commit()
                 print("   ✅ Column 'is_email_verified' added successfully!")
-            else:
-                print("   ✅ All migrations up to date")
+            
+            # Run subscription features migration
+            try:
+                from migrations.add_subscription_features import run_migration
+                run_migration(DATABASE_URL)
+            except Exception as e:
+                print(f"⚠️ Subscription features migration: {e}")
+            
+            print("   ✅ All migrations completed")
                 
     except Exception as e:
         print(f"   ⚠️  Migration warning: {e}")

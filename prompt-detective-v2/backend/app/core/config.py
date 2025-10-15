@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     # Resend API (requires domain verification)
     RESEND_API_KEY: Optional[str] = os.getenv("RESEND_API_KEY")
     
+    # Razorpay Payment Gateway (Indian market - UPI, Cards, NetBanking, Wallets)
+    RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")
+    RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
+    RAZORPAY_WEBHOOK_SECRET: Optional[str] = os.getenv("RAZORPAY_WEBHOOK_SECRET")
+    
     # Frontend URL (for email links and OAuth redirects)
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     
@@ -63,6 +68,11 @@ class Settings(BaseSettings):
         "ALLOWED_ORIGINS", 
         "http://localhost:3000,https://your-frontend-domain.com"
     )
+
+    # Admin bootstrap
+    ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "tryreverseai@gmail.com")
+    ADMIN_PASSWORD: Optional[str] = os.getenv("ADMIN_PASSWORD")
+    DEFAULT_ADMIN_PASSWORD: str = os.getenv("DEFAULT_ADMIN_PASSWORD", "ChangeMe!123!")
     
     @property
     def allowed_origins_list(self) -> list[str]:

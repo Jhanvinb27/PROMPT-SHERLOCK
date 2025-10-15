@@ -35,6 +35,7 @@ requests
 aiofiles
 cloudinary
 sib-api-v3-sdk  # Brevo/Sendinblue - FREE 300 emails/day, no domain needed
+razorpay  # Razorpay Payment Gateway - Indian market (UPI, Cards, NetBanking)
 
 # Development
 pytest

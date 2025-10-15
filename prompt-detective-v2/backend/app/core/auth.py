@@ -8,6 +8,7 @@ import jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
@@ -67,6 +68,34 @@ class EmailVerificationRequest(BaseModel):
 class EmailVerificationConfirm(BaseModel):
     email: EmailStr
     otp_code: str
+
+
+def _normalize_email(email: str) -> str:
+    """Normalize emails for consistent lookups."""
+    return (email or "").strip().lower()
+
+
+def _serialize_user(user: User) -> Dict[str, Any]:
+    """Serialize a User ORM model into the API response format."""
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "username": user.username,
+        "is_active": user.is_active,
+        "is_premium": user.is_premium,
+        "is_email_verified": getattr(user, "is_email_verified", False),
+        "is_admin": getattr(user, "is_admin", False),
+        "is_super_admin": getattr(user, "is_super_admin", False),
+        "is_on_trial": getattr(user, "is_on_trial", False),
+        "trial_started_at": user.trial_started_at.isoformat() if getattr(user, "trial_started_at", None) else None,
+        "trial_ends_at": user.trial_ends_at.isoformat() if getattr(user, "trial_ends_at", None) else None,
+        "has_used_trial": getattr(user, "has_used_trial", False),
+        "api_calls_limit": user.api_calls_limit,
+        "api_calls_used": user.api_calls_used,
+        "subscription_tier": user.subscription_tier,
+        "created_at": user.created_at.isoformat() if user.created_at else "",
+    }
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash - supports both old and new formats"""
@@ -148,7 +177,12 @@ def verify_password_reset_token(token: str) -> Optional[str]:
 
 def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     """Authenticate user with email and password"""
-    user = db.query(User).filter(User.email == email).first()
+    normalized_email = _normalize_email(email)
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == normalized_email)
+        .first()
+    )
     if not user:
         return None
     if not verify_password(password, user.password_hash):
@@ -220,8 +254,13 @@ async def google_oauth_callback(code: str, redirect_uri: str) -> Dict[str, Any]:
 
 def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
     """Register new user and return tokens"""
+    email = _normalize_email(user_data.email)
     # Check if user exists
-    if db.query(User).filter(User.email == user_data.email).first():
+    if (
+        db.query(User)
+        .filter(func.lower(User.email) == email)
+        .first()
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
@@ -236,11 +275,13 @@ def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
     
     # Create user
     hashed_password = get_password_hash(user_data.password)
+    full_name = user_data.full_name or email.split("@")[0]
+    username = user_data.username or email.split("@")[0]
     user = User(
-        email=user_data.email,
+        email=email,
         password_hash=hashed_password,
-        full_name=user_data.full_name or user_data.email.split("@")[0],
-        username=user_data.username or user_data.email.split("@")[0],
+        full_name=full_name,
+        username=username,
         subscription_tier="free",
         is_active=True,
         is_premium=False,
@@ -264,18 +305,7 @@ def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:
         access_token=access_token,
         refresh_token=refresh_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
-        user={
-            "id": str(user.id),
-            "email": user.email,
-            "full_name": user.full_name,
-            "username": user.username,
-            "is_active": user.is_active,
-            "is_premium": user.is_premium,
-            "api_calls_limit": user.api_calls_limit,
-            "api_calls_used": user.api_calls_used,
-            "subscription_tier": user.subscription_tier,
-            "created_at": user.created_at.isoformat() if user.created_at else ""
-        }
+        user=_serialize_user(user)
     )
 
 def login_user(db: Session, login_data: UserLogin) -> TokenResponse:
@@ -305,18 +335,7 @@ def login_user(db: Session, login_data: UserLogin) -> TokenResponse:
         access_token=access_token,
         refresh_token=refresh_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
-        user={
-            "id": str(user.id),
-            "email": user.email,
-            "full_name": user.full_name,
-            "username": user.username,
-            "is_active": user.is_active,
-            "is_premium": user.is_premium,
-            "api_calls_limit": user.api_calls_limit,
-            "api_calls_used": user.api_calls_used,
-            "subscription_tier": user.subscription_tier,
-            "created_at": user.created_at.isoformat() if user.created_at else ""
-        }
+        user=_serialize_user(user)
     )
 
 def refresh_access_token(refresh_token: str, db: Session) -> TokenResponse:
@@ -343,12 +362,18 @@ def refresh_access_token(refresh_token: str, db: Session) -> TokenResponse:
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,  # Keep the same refresh token
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
+        user=_serialize_user(user)
     )
 
 async def request_password_reset(db: Session, email: str) -> Dict[str, str]:
     """Request password reset OTP"""
-    user = db.query(User).filter(User.email == email).first()
+    normalized_email = _normalize_email(email)
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == normalized_email)
+        .first()
+    )
     if not user:
         # Don't reveal if email exists
         return {"message": "If email exists, reset code has been sent"}
@@ -372,7 +397,12 @@ async def request_password_reset(db: Session, email: str) -> Dict[str, str]:
 
 def reset_password(db: Session, email: str, otp_code: str, new_password: str) -> Dict[str, str]:
     """Reset password using OTP"""
-    user = db.query(User).filter(User.email == email).first()
+    normalized_email = _normalize_email(email)
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == normalized_email)
+        .first()
+    )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -403,7 +433,12 @@ def reset_password(db: Session, email: str, otp_code: str, new_password: str) ->
 
 async def verify_password_reset_otp(db: Session, email: str, otp_code: str) -> Dict[str, str]:
     """Verify password reset OTP"""
-    user = db.query(User).filter(User.email == email).first()
+    normalized_email = _normalize_email(email)
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == normalized_email)
+        .first()
+    )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -421,11 +456,15 @@ async def verify_password_reset_otp(db: Session, email: str, otp_code: str) -> D
 
 async def request_email_verification(db: Session, email: str) -> Dict[str, str]:
     """Request email verification OTP"""
-    email = email.strip().lower()
+    email = _normalize_email(email)
     
     print(f"📧 Requesting email verification for: {email}")
     
-    user = db.query(User).filter(User.email == email).first()
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == email)
+        .first()
+    )
     if not user:
         print(f"❌ User not found: {email}")
         raise HTTPException(
@@ -459,12 +498,16 @@ async def request_email_verification(db: Session, email: str) -> Dict[str, str]:
 async def verify_email(db: Session, email: str, otp_code: str) -> Dict[str, str]:
     """Verify email with OTP"""
     # Clean the inputs
-    email = email.strip().lower()
+    email = _normalize_email(email)
     otp_code = str(otp_code).strip()
     
     print(f"🔍 Verifying email: {email} with OTP: '{otp_code}'")
     
-    user = db.query(User).filter(User.email == email).first()
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == email)
+        .first()
+    )
     if not user:
         print(f"❌ User not found: {email}")
         raise HTTPException(

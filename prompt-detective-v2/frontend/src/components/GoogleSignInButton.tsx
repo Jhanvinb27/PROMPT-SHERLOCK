@@ -6,7 +6,7 @@
 import React from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore, User } from '../stores/authStore';
 import googleAuthService from '../services/googleAuth';
 
 interface GoogleSignInButtonProps {
@@ -45,10 +45,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
 
         // Store tokens and user data
         setTokens(authResponse.access_token, authResponse.refresh_token);
-        setUser({
-          ...authResponse.user,
-          subscription_tier: authResponse.user.subscription_tier as 'free' | 'basic' | 'pro' | 'enterprise'
-        });
+        setUser(authResponse.user as User);
 
         // Call success callback
         if (onSuccess) {

@@ -39,7 +39,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Link to="/profile" className="text-gray-700 hover:text-blue-600">
                     Profile
                   </Link>
-                  {user?.subscription_tier === 'enterprise' && (
+                  {(user?.subscription_tier === 'enterprise' || user?.is_admin || user?.is_super_admin) && (
                     <Link to="/admin" className="text-gray-700 hover:text-blue-600">
                       Admin
                     </Link>

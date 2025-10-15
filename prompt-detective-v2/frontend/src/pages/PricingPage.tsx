@@ -1,6 +1,11 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Star, Zap, Shield, Crown, Users, Sparkles, TrendingUp, Clock, Gift } from 'lucide-react';
+import { Check, Star, Zap, Shield, Crown, Users, Sparkles, TrendingUp, Clock, Gift, Loader2 } from 'lucide-react';
+import { RazorpayCheckout, CreditPackCheckout, PaymentMethodsInfo } from '../components/payment/RazorpayCheckout';
+import { api } from '../services/api';
+import { startTrial } from '../services/trialService';
+import { useAuthStore } from '../stores/authStore';
+import toast from 'react-hot-toast';
 
 interface PricingPlan {
   id: string;
@@ -30,9 +35,84 @@ interface CreditPack {
 
 const PricingPage: React.FC = () => {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
   const [selectedPlan, setSelectedPlan] = useState<string | null>('pro');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
   const [showLaunchPricing, setShowLaunchPricing] = useState(true);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<PricingPlan | null>(null);
+  const [isStartingTrial, setIsStartingTrial] = useState(false);
+  const hasUsedTrial = Boolean(user?.has_used_trial);
+  const isOnTrial = Boolean(user?.is_on_trial);
+  const trialEndsDisplay = user?.trial_ends_at
+    ? new Date(user.trial_ends_at).toLocaleString(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      })
+    : null;
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const response = await api.get('/auth/me');
+      setUser(response.data);
+    } catch (error) {
+      console.error('Failed to refresh user profile after subscription change:', error);
+    }
+  }, [setUser]);
+
+  const handlePaymentSuccess = async (response: any) => {
+    console.log('Payment success:', response);
+    toast.success('Welcome to premium! Redirecting to dashboard...');
+    await refreshUser();
+    setTimeout(() => {
+      navigate('/dashboard');
+    }, 2000);
+  };
+
+  const handlePaymentFailure = (error: any) => {
+    console.error('Payment failed:', error);
+  };
+
+  const handleCreditPackSuccess = (response: any) => {
+    console.log('Credit pack purchase success:', response);
+    toast.success('Credit pack activated! Redirecting to dashboard...');
+    setTimeout(() => {
+      navigate('/dashboard');
+    }, 2000);
+  };
+
+  const handleStartTrial = async () => {
+    if (!selectedPlanForPayment) {
+      return;
+    }
+
+    if (isOnTrial) {
+      toast.error('You are already on an active trial. Enjoy exploring premium features!');
+      return;
+    }
+
+    if (hasUsedTrial) {
+      toast.error('You have already used your free trial. Please choose a plan to subscribe.');
+      return;
+    }
+
+    setIsStartingTrial(true);
+
+    try {
+      const response = await startTrial(selectedPlanForPayment.id);
+      toast.success(response.message || `Your ${selectedPlanForPayment.name} trial has started!`);
+      await refreshUser();
+      setShowPlanModal(false);
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Trial start failed:', error);
+      const errorMessage = error?.response?.data?.detail || error.message || 'Failed to start trial. Please try again later.';
+      toast.error(errorMessage);
+    } finally {
+      setIsStartingTrial(false);
+    }
+  };
 
   const plans: PricingPlan[] = [
     {
@@ -161,13 +241,22 @@ const PricingPage: React.FC = () => {
     if (plan.id === 'free') {
       navigate('/signup');
     } else {
-      navigate('/signup', { 
-        state: { 
-          planName: plan.name,
-          planId: plan.id,
-          fromPricing: true 
-        } 
-      });
+      // Check if user is logged in
+      if (!user) {
+        // Redirect to signup with plan info
+        navigate('/signup', { 
+          state: { 
+            planName: plan.name,
+            planId: plan.id,
+            fromPricing: true 
+          } 
+        });
+      } else {
+        // User is logged in, show payment modal
+        setSelectedPlanForPayment(plan);
+        setIsStartingTrial(false);
+        setShowPlanModal(true);
+      }
     }
   };
 
@@ -410,12 +499,21 @@ const PricingPage: React.FC = () => {
                       ₹{pack.perAnalysis.toFixed(2)} per analysis
                     </p>
                   </div>
-                  <button
-                    onClick={() => navigate('/signup', { state: { creditPack: pack.name } })}
-                    className="w-full py-2 px-4 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:from-blue-700 hover:to-purple-700 transition-colors"
-                  >
-                    Buy Now
-                  </button>
+                  {!user ? (
+                    <button
+                      onClick={() => navigate('/signup', { state: { creditPack: pack.name } })}
+                      className="w-full py-2 px-4 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:from-blue-700 hover:to-purple-700 transition-colors"
+                    >
+                      Sign Up to Buy
+                    </button>
+                  ) : (
+                    <CreditPackCheckout
+                      packName={pack.name}
+                      amount={pack.price}
+                      onSuccess={handleCreditPackSuccess}
+                      onFailure={handlePaymentFailure}
+                    />
+                  )}
                 </div>
               </div>
             ))}
@@ -638,6 +736,139 @@ const PricingPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Plan Action Modal */}
+      {showPlanModal && selectedPlanForPayment && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="relative w-full max-w-xl sm:max-w-2xl bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowPlanModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              aria-label="Close"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="text-center mb-6">
+              <div className={`inline-flex p-4 rounded-full bg-gradient-to-br ${selectedPlanForPayment.gradient} text-white mb-4`}>
+                {selectedPlanForPayment.icon}
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                {selectedPlanForPayment.name} Plan
+              </h3>
+              <p className="text-gray-600">
+                {selectedPlanForPayment.description}
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-5 sm:p-6 mb-6">
+              <div className="flex items-baseline justify-center mb-2">
+                <span className="text-4xl font-extrabold text-gray-900">
+                  ₹{getPrice(selectedPlanForPayment)}
+                </span>
+                <span className="text-base font-medium text-gray-500 ml-1">
+                  /{billingCycle === 'monthly' ? 'mo' : 'yr'}
+                </span>
+              </div>
+
+              {showLaunchPricing && selectedPlanForPayment.launchPriceMonthly && (
+                <div className="text-center">
+                  <span className="text-lg text-gray-400 line-through">
+                    ₹{billingCycle === 'monthly' ? selectedPlanForPayment.priceMonthly : selectedPlanForPayment.priceYearly}
+                  </span>
+                  <span className="ml-2 inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-red-500 to-pink-600 text-white text-xs font-bold">
+                    {selectedPlanForPayment.badge} - LAUNCH OFFER
+                  </span>
+                </div>
+              )}
+
+              <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                <p className="text-sm text-gray-600 text-center flex items-center justify-center">
+                  <Check className="w-4 h-4 text-green-600 mr-2" />
+                  {selectedPlanForPayment.dailyLimit} analyses per day (resets nightly)
+                </p>
+                <p className="text-sm text-gray-600 text-center flex items-center justify-center">
+                  <Clock className="w-4 h-4 text-blue-500 mr-2" />
+                  Priority processing & premium support included
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="border border-purple-200 rounded-xl p-5 bg-white/90 shadow-sm flex flex-col">
+                <div className="mb-3">
+                  <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-purple-500" />
+                    Start Free Trial
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    Enjoy full access for 3 days. Auto-downgrades back to Free afterwards.
+                  </p>
+                </div>
+                <button
+                  onClick={handleStartTrial}
+                  disabled={isStartingTrial || hasUsedTrial || isOnTrial}
+                  className="w-full inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold py-3 px-4 hover:from-green-600 hover:to-emerald-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isStartingTrial ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Starting trial...
+                    </>
+                  ) : (
+                    <>
+                      Start 3-day Trial
+                    </>
+                  )}
+                </button>
+                {hasUsedTrial && !isOnTrial && (
+                  <p className="mt-3 text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-center">
+                    You have already used your free trial on this account.
+                  </p>
+                )}
+                {isOnTrial && trialEndsDisplay && (
+                  <p className="mt-3 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-center">
+                    Your trial is active until {trialEndsDisplay}.
+                  </p>
+                )}
+              </div>
+
+              <div className="border border-gray-200 rounded-xl p-5 bg-white/90 shadow-sm flex flex-col">
+                <div className="mb-3">
+                  <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-purple-500" />
+                    Buy Now
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    Lock in launch pricing forever with secure Razorpay checkout.
+                  </p>
+                </div>
+                <RazorpayCheckout
+                  amount={getPrice(selectedPlanForPayment)}
+                  planId={selectedPlanForPayment.id}
+                  planName={selectedPlanForPayment.name}
+                  billingCycle={billingCycle}
+                  useLaunchPricing={showLaunchPricing}
+                  onSuccess={handlePaymentSuccess}
+                  onFailure={handlePaymentFailure}
+                  buttonText={`Pay ₹${getPrice(selectedPlanForPayment)} Securely`}
+                  buttonClassName="w-full py-3 px-6 rounded-xl text-center font-semibold transition-all duration-200 bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 shadow-lg hover:shadow-xl"
+                />
+                <div className="mt-4">
+                  <PaymentMethodsInfo />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 text-center text-xs text-gray-500 space-y-1">
+              <p>🔒 Payments processed securely by Razorpay. UPI, cards, and net banking accepted.</p>
+              <p>Need help choosing a plan? Reach us at support@promptdetective.ai</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

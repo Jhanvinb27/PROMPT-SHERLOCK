@@ -3,6 +3,7 @@ Authentication API endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from ...core.auth import (
     UserCreate, UserLogin, TokenResponse, GoogleOAuthRequest,
@@ -11,12 +12,17 @@ from ...core.auth import (
     signup_user, login_user, refresh_access_token,
     request_password_reset, verify_password_reset_otp, reset_password,
     request_email_verification, verify_email,
-    get_current_active_user, google_oauth_callback
+    get_current_active_user, google_oauth_callback,
+    _serialize_user
 )
 from ...database import get_db
 from ...models.user import User
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
 
 @router.post("/signup", response_model=TokenResponse)
 async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
@@ -30,24 +36,18 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
-    refresh_token: str,
+    payload: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ):
     """Refresh access token using refresh token"""
-    return refresh_access_token(refresh_token, db)
+    return refresh_access_token(payload.refresh_token, db)
 
 @router.post("/google/oauth", response_model=TokenResponse)
 async def google_oauth(oauth_data: GoogleOAuthRequest, db: Session = Depends(get_db)):
-    """
-    Handle Google OAuth callback
-    
-    Exchanges the authorization code from Google for user tokens
-    Creates or updates user account and returns JWT tokens
-    """
+    """Handle Google OAuth callback"""
     return await google_oauth_callback(
         code=oauth_data.code,
-        redirect_uri=oauth_data.redirect_uri,
-        db=db
+        redirect_uri=oauth_data.redirect_uri
     )
 
 @router.post("/password-reset/request")
@@ -55,7 +55,7 @@ async def request_password_reset_endpoint(
     reset_data: PasswordResetRequest,
     db: Session = Depends(get_db)
 ):
-    """Request password reset OTP via email"""
+    """Request password reset email"""
     return await request_password_reset(db, reset_data.email)
 
 @router.post("/password-reset/verify-otp")
@@ -71,7 +71,7 @@ async def reset_password_endpoint(
     reset_data: PasswordResetConfirm,
     db: Session = Depends(get_db)
 ):
-    """Confirm password reset with OTP and new password"""
+    """Confirm password reset with token"""
     return reset_password(db, reset_data.email, reset_data.otp_code, reset_data.new_password)
 
 @router.post("/email-verification/request")
@@ -93,19 +93,7 @@ async def verify_email_endpoint(
 @router.get("/me")
 async def get_current_user_info(current_user: User = Depends(get_current_active_user)):
     """Get current user information"""
-    return {
-        "id": str(current_user.id),
-        "email": current_user.email,
-        "full_name": current_user.full_name,
-        "is_active": current_user.is_active,
-        "is_premium": current_user.subscription_tier in ["pro", "enterprise"],
-        "is_admin": current_user.is_admin if hasattr(current_user, 'is_admin') else False,
-        "is_super_admin": current_user.is_super_admin if hasattr(current_user, 'is_super_admin') else False,
-        "api_calls_limit": 150 if current_user.subscription_tier == "free" else 1000,
-        "api_calls_used": 0,  # TODO: Get from usage tracking
-        "subscription_tier": current_user.subscription_tier,
-        "created_at": current_user.created_at.isoformat() if current_user.created_at else ""
-    }
+    return _serialize_user(current_user)
 
 @router.post("/create-test-user")
 async def create_test_user(db: Session = Depends(get_db)):

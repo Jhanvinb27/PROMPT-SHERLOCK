@@ -15,7 +15,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin 
     return null;
   }
 
-  if (requireAdmin && user && user.subscription_tier !== 'enterprise') {
+  if (requireAdmin && user && !(user.subscription_tier === 'enterprise' || user.is_admin || user.is_super_admin)) {
     // Not authorized for admin area
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">

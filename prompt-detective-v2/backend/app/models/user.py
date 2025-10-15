@@ -14,18 +14,37 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    full_name = Column(String, nullable=False)  # Changed from 'name' to 'full_name'
-    username = Column(String, unique=True, index=True)  # Added username field
-    subscription_tier = Column(String, default="free")  # Changed from 'role' to 'subscription_tier'
+    full_name = Column(String, nullable=False)
+    username = Column(String, unique=True, index=True)
+    subscription_tier = Column(String, default="free")  # free, starter, pro, business
     is_active = Column(Boolean, default=True)
-    is_premium = Column(Boolean, default=False)  # Added is_premium field
-    is_email_verified = Column(Boolean, default=False)  # Email verification status
-    is_admin = Column(Boolean, default=False)  # Admin flag - super user access
-    is_super_admin = Column(Boolean, default=False)  # Super admin - highest level access
-    api_calls_used = Column(Integer, default=0)  # Added api_calls_used field
-    api_calls_limit = Column(Integer, default=100)  # Added api_calls_limit field (unlimited for admin: -1)
+    is_premium = Column(Boolean, default=False)
+    is_email_verified = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=False)
+    is_super_admin = Column(Boolean, default=False)
+    
+    # Trial management
+    is_on_trial = Column(Boolean, default=False)
+    trial_started_at = Column(DateTime(timezone=True))
+    trial_ends_at = Column(DateTime(timezone=True))
+    has_used_trial = Column(Boolean, default=False)  # Prevent multiple trials
+    
+    # Usage tracking
+    api_calls_used = Column(Integer, default=0)
+    api_calls_limit = Column(Integer, default=5)  # Daily limit based on plan
+    daily_analyses_count = Column(Integer, default=0)  # Resets daily
+    last_reset_date = Column(DateTime(timezone=True))
+    total_analyses_count = Column(Integer, default=0)  # Lifetime count
+    
+    # Referral system
+    referral_code = Column(String, unique=True, index=True)  # User's unique referral code
+    referred_by_code = Column(String)  # Code of user who referred them
+    referral_credits = Column(Integer, default=0)  # Credits earned from referrals
+    
+    # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    last_login_at = Column(DateTime(timezone=True))
     
     # Relationships
     api_keys = relationship("APIKey", back_populates="user")
@@ -33,6 +52,8 @@ class User(Base):
     usage_logs = relationship("UsageLog", back_populates="user")
     subscriptions = relationship("Subscription", back_populates="user")
     otp_codes = relationship("OTPCode", back_populates="user")
+    payments = relationship("Payment", back_populates="user")
+    credits = relationship("CreditPack", back_populates="user")
 
 class APIKey(Base):
     __tablename__ = "api_keys"
@@ -86,16 +107,86 @@ class Subscription(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    plan = Column(String, nullable=False)  # free, pro, enterprise
-    status = Column(String, default="active")  # active, cancelled, expired
+    plan = Column(String, nullable=False)  # free, starter, pro, business
+    status = Column(String, default="active")  # active, cancelled, expired, trialing
+    payment_status = Column(String, default="pending")  # pending, paid, failed, refunded
+    
+    # Limits
     daily_limit = Column(Integer, default=5)
     monthly_limit = Column(Integer, default=150)
+    api_calls_limit = Column(Integer, default=0)
+    
+    # Billing
+    billing_cycle = Column(String)  # monthly, yearly
+    price_paid = Column(Float)  # Amount paid in INR
+    currency = Column(String, default="INR")
+    
+    # Dates
     started_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime(timezone=True))
-    stripe_subscription_id = Column(String)  # For payment integration
+    next_billing_date = Column(DateTime(timezone=True))
+    cancelled_at = Column(DateTime(timezone=True))
+    
+    # Payment gateway
+    razorpay_subscription_id = Column(String)
+    razorpay_customer_id = Column(String)
+    auto_renew = Column(Boolean, default=True)
+    
+    # Launch pricing lock
+    is_launch_pricing = Column(Boolean, default=False)
+    locked_price = Column(Float)  # Forever locked launch price
     
     # Relationships
     user = relationship("User", back_populates="subscriptions")
+
+class Payment(Base):
+    __tablename__ = "payments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Payment details
+    amount = Column(Float, nullable=False)
+    currency = Column(String, default="INR")
+    payment_type = Column(String, nullable=False)  # subscription, credit_pack, api_usage
+    payment_method = Column(String)  # upi, card, netbanking, wallet
+    status = Column(String, default="pending")  # pending, success, failed, refunded
+    
+    # Razorpay details
+    razorpay_order_id = Column(String, unique=True)
+    razorpay_payment_id = Column(String, unique=True)
+    razorpay_signature = Column(String)
+    
+    # Metadata
+    description = Column(Text)
+    payment_metadata = Column(JSON)  # Additional payment metadata (renamed from metadata)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime(timezone=True))
+    
+    # Relationships
+    user = relationship("User", back_populates="payments")
+
+class CreditPack(Base):
+    __tablename__ = "credit_packs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Pack details
+    pack_name = Column(String, nullable=False)  # Mini, Standard, Power
+    analyses_total = Column(Integer, nullable=False)
+    analyses_remaining = Column(Integer, nullable=False)
+    price_paid = Column(Float, nullable=False)
+    
+    # Validity
+    purchased_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    user = relationship("User", back_populates="credits")
 
 class AdminNote(Base):
     __tablename__ = "admin_notes"
@@ -119,3 +210,46 @@ class OTPCode(Base):
     
     # Relationships
     user = relationship("User", back_populates="otp_codes")
+
+class ContactMessage(Base):
+    __tablename__ = "contact_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False)
+    subject = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    category = Column(String)  # general, billing, technical, feedback
+    status = Column(String, default="new")  # new, in_progress, resolved, closed
+    priority = Column(String, default="normal")  # low, normal, high, urgent
+    
+    # Auto-response
+    auto_response_sent = Column(Boolean, default=False)
+    
+    # Admin response
+    admin_response = Column(Text)
+    responded_at = Column(DateTime(timezone=True))
+    responded_by = Column(Integer, ForeignKey("users.id"))
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc))
+
+class EmailLog(Base):
+    __tablename__ = "email_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    
+    # Email details
+    email_to = Column(String, nullable=False)
+    email_type = Column(String, nullable=False)  # welcome, verification, subscription, trial_ending, etc.
+    subject = Column(String, nullable=False)
+    
+    # Status
+    status = Column(String, default="pending")  # pending, sent, failed
+    error_message = Column(Text)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    sent_at = Column(DateTime(timezone=True))

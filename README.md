@@ -193,6 +193,7 @@ Prompt-Detective/
 - Email + password signup/login (bcrypt hashing if library present; SHA-256 fallback)
 - Persistent DB-backed sessions (token + expiry) with automatic restoration
 - Role = plan code (free/pro/team/admin) used for gating
+- Backend auto-seeds a super-admin using `ADMIN_EMAIL` / `ADMIN_PASSWORD` (falls back to `ChangeMe!123!` when no password supplied—rotate it in production)
 
 ### Plans & Usage Limits
 - Seeded plans (free/pro/team) with daily analysis quotas
@@ -212,6 +213,7 @@ Prompt-Detective/
 
 ### Admin Utilities
 - Admin page listing users, roles, metrics (future: role elevation, plan management)
+- Admin API enforces `is_admin` / `is_super_admin` flags with enterprise-level bypass
 
 ### Legal & Compliance Placeholders
 - Structured Terms of Service & Privacy Policy pages (replace with counsel text)
