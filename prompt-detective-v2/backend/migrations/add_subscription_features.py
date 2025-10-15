@@ -156,9 +156,31 @@ def run_migration(database_url: str):
                     updated_at TIMESTAMP WITH TIME ZONE
                 )
             """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_contact_status ON contact_messages(status)"))
-            print("✅ Contact messages table created")
+
+            required_contact_columns = {
+                "status": "VARCHAR(50) DEFAULT 'new'",
+                "priority": "VARCHAR(20) DEFAULT 'normal'",
+                "auto_response_sent": "BOOLEAN DEFAULT false",
+                "responded_by": "INTEGER REFERENCES users(id)",
+            }
+
+            for col_name, col_def in required_contact_columns.items():
+                if not column_exists("contact_messages", col_name):
+                    conn.execute(
+                        text(
+                            f"ALTER TABLE contact_messages ADD COLUMN {col_name} {col_def}"
+                        )
+                    )
+
+            if column_exists("contact_messages", "status"):
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS idx_contact_status ON contact_messages(status)"
+                    )
+                )
+
             conn.commit()
+            print("✅ Contact messages table created")
         except SQLAlchemyError as e:
             conn.rollback()
             print(f"⚠️ Contact messages table creation: {e}")
