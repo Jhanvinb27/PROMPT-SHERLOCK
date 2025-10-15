@@ -13,7 +13,7 @@ from .services.admin_seeder import ensure_super_admin
 
 # Ensure migrations run before interacting with the database
 try:
-    from ..run_migrations import run_migrations
+    from run_migrations import run_migrations
 except Exception as migration_import_error:  # pragma: no cover - defensive logging
     run_migrations = None
     print(f"⚠️  Could not import run_migrations: {migration_import_error}")
