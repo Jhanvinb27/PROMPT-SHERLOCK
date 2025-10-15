@@ -2,6 +2,7 @@
 Migration: Add subscription features, trials, payments, credits
 """
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 import os
 
 def run_migration(database_url: str):
@@ -10,6 +11,21 @@ def run_migration(database_url: str):
     engine = create_engine(database_url)
     
     with engine.connect() as conn:
+
+        def column_exists(table: str, column: str) -> bool:
+            result = conn.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = :table
+                    AND column_name = :column
+                    """
+                ),
+                {"table": table, "column": column},
+            )
+            return result.scalar() is not None
+
         # Add new columns to users table
         try:
             # Trial management
@@ -30,9 +46,11 @@ def run_migration(database_url: str):
             
             # Last login
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE"))
+            conn.commit()
             
             print("✅ Users table updated")
-        except Exception as e:
+        except SQLAlchemyError as e:
+            conn.rollback()
             print(f"⚠️ Users table migration: {e}")
         
         # Update subscriptions table
@@ -49,16 +67,22 @@ def run_migration(database_url: str):
             conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS auto_renew BOOLEAN DEFAULT true"))
             conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS is_launch_pricing BOOLEAN DEFAULT false"))
             conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_price FLOAT"))
-            
-            # Rename stripe_subscription_id to razorpay if exists
-            conn.execute(text("""
-                DO $$ BEGIN
-                    ALTER TABLE subscriptions RENAME COLUMN stripe_subscription_id TO razorpay_subscription_id;
-                EXCEPTION WHEN undefined_column THEN NULL; END $$;
-            """))
+            conn.commit()
+
+            if column_exists("subscriptions", "stripe_subscription_id") and not column_exists("subscriptions", "razorpay_subscription_id"):
+                try:
+                    conn.execute(text("ALTER TABLE subscriptions RENAME COLUMN stripe_subscription_id TO razorpay_subscription_id"))
+                    conn.commit()
+                    print("ℹ️  Renamed stripe_subscription_id to razorpay_subscription_id")
+                except SQLAlchemyError as rename_error:
+                    conn.rollback()
+                    print(f"⚠️ Subscriptions column rename: {rename_error}")
+            else:
+                print("ℹ️  No legacy stripe_subscription_id column to rename")
             
             print("✅ Subscriptions table updated")
-        except Exception as e:
+        except SQLAlchemyError as e:
+            conn.rollback()
             print(f"⚠️ Subscriptions table migration: {e}")
         
         # Create payments table
@@ -84,7 +108,9 @@ def run_migration(database_url: str):
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)"))
             print("✅ Payments table created")
-        except Exception as e:
+            conn.commit()
+        except SQLAlchemyError as e:
+            conn.rollback()
             print(f"⚠️ Payments table creation: {e}")
         
         # Create credit_packs table
@@ -105,7 +131,9 @@ def run_migration(database_url: str):
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_credit_packs_user_id ON credit_packs(user_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_credit_packs_active ON credit_packs(is_active)"))
             print("✅ Credit packs table created")
-        except Exception as e:
+            conn.commit()
+        except SQLAlchemyError as e:
+            conn.rollback()
             print(f"⚠️ Credit packs table creation: {e}")
         
         # Create contact_messages table
@@ -130,7 +158,9 @@ def run_migration(database_url: str):
             """))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_contact_status ON contact_messages(status)"))
             print("✅ Contact messages table created")
-        except Exception as e:
+            conn.commit()
+        except SQLAlchemyError as e:
+            conn.rollback()
             print(f"⚠️ Contact messages table creation: {e}")
         
         # Create email_logs table
@@ -151,10 +181,10 @@ def run_migration(database_url: str):
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_email_logs_user_id ON email_logs(user_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_email_logs_type ON email_logs(email_type)"))
             print("✅ Email logs table created")
-        except Exception as e:
+            conn.commit()
+        except SQLAlchemyError as e:
+            conn.rollback()
             print(f"⚠️ Email logs table creation: {e}")
-        
-        conn.commit()
         print("🎉 Migration completed successfully!")
 
 if __name__ == "__main__":
