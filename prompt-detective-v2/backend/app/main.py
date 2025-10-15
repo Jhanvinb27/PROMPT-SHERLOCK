@@ -11,10 +11,22 @@ from .api.v1.router import api_router
 from .database import engine, Base
 from .services.admin_seeder import ensure_super_admin
 
+# Ensure migrations run before interacting with the database
+try:
+    from ..run_migrations import run_migrations
+except Exception as migration_import_error:  # pragma: no cover - defensive logging
+    run_migrations = None
+    print(f"⚠️  Could not import run_migrations: {migration_import_error}")
+
 # Create tables on startup
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    if run_migrations:
+        try:
+            run_migrations()
+        except Exception as migration_error:  # pragma: no cover - defensive logging
+            print(f"⚠️  Automatic migration failed: {migration_error}")
     Base.metadata.create_all(bind=engine)
     ensure_super_admin()
     yield
