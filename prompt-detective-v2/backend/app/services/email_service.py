@@ -1,5 +1,6 @@
 """Email service utilities using Brevo API (free, no domain needed) or SMTP fallback."""
 import asyncio
+import html
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -257,6 +258,153 @@ async def _dispatch_email(
     
     print(f"❌ No email service configured (need BREVO_API_KEY, RESEND_API_KEY, or SMTP_PASSWORD)")
     return False
+
+
+async def send_contact_notification_email(
+    *,
+    admin_email: str,
+    contact_name: str,
+    contact_email: str,
+    topic_label: str,
+    topic_key: str,
+    message_body: str,
+    selected_question: str | None = None,
+    metadata: dict[str, str] | None = None,
+) -> bool:
+    """Send an internal alert when a customer submits the contact form."""
+
+    subject = f"📩 New Support Request · {topic_label}"
+
+    safe_message = html.escape(message_body).replace("\n", "<br />") if message_body else "<em>No additional notes provided.</em>"
+    safe_question = (
+        f"<p style=\"margin: 6px 0;\"><strong>Pre-selected query</strong><br />{html.escape(selected_question)}</p>"
+        if selected_question
+        else ""
+    )
+
+    meta_rows = ""
+    if metadata:
+        for key, value in metadata.items():
+            if value:
+                meta_rows += (
+                    "<tr>"
+                    f"<td style=\"padding: 6px 12px; color: #6B7280; font-size: 14px;\">{html.escape(key)}</td>"
+                    f"<td style=\"padding: 6px 12px; color: #111827; font-size: 14px; font-weight: 600;\">{html.escape(value)}</td>"
+                    "</tr>"
+                )
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset=\"utf-8\" /></head>
+    <body style=\"margin:0; padding:24px; background-color:#F9FAFB; font-family: 'Inter', Arial, sans-serif;\">
+        {get_email_template_header()}
+        <div style=\"background-color:#ffffff; padding:32px;\">
+            <h2 style=\"margin:0 0 16px; color:#111827; font-size:22px;\">New contact request</h2>
+            <p style=\"color:#4B5563; font-size:15px; margin:0 0 24px;\">
+                A customer just submitted the support form on Prompt Detective. Review the details below and respond within the target SLA.
+            </p>
+            <div style=\"background-color:#F9FAFB; border-radius:10px; padding:20px; border:1px solid #E5E7EB; margin-bottom:24px;\">
+                <p style=\"margin:0; color:#6B7280; font-size:13px; text-transform:uppercase; letter-spacing:0.08em;\">Topic</p>
+                <p style=\"margin:4px 0 0; color:#111827; font-size:18px; font-weight:600;\">{html.escape(topic_label)} <span style=\"color:#9CA3AF; font-size:13px; font-weight:400;\">({html.escape(topic_key)})</span></p>
+            </div>
+            <div style=\"border:1px solid #E5E7EB; border-radius:10px; overflow:hidden; margin-bottom:24px;\">
+                <table style=\"width:100%; border-collapse:collapse;\">
+                    <tr>
+                        <td style=\"padding:12px 16px; background-color:#F3F4F6; color:#6B7280; font-size:13px; text-transform:uppercase; letter-spacing:0.08em;\">Customer</td>
+                        <td style=\"padding:12px 16px; background-color:#F9FAFB; color:#111827; font-size:15px; font-weight:600;\">{html.escape(contact_name)} ({html.escape(contact_email)})</td>
+                    </tr>
+                    {meta_rows}
+                </table>
+            </div>
+            <div style=\"border-left:4px solid #8B5CF6; background-color:#F5F3FF; padding:18px 20px; border-radius:10px;\">
+                {safe_question}
+                <p style=\"margin:12px 0 6px; color:#6B7280; font-size:13px; text-transform:uppercase; letter-spacing:0.08em;\">Customer notes</p>
+                <div style=\"color:#1F2937; font-size:15px; line-height:1.6;\">{safe_message}</div>
+            </div>
+        </div>
+        {get_email_template_footer()}
+    </body>
+    </html>
+    """
+
+    text_lines = [
+        "New contact request",
+        f"Topic: {topic_label} ({topic_key})",
+        f"From: {contact_name} <{contact_email}>",
+    ]
+    if metadata:
+        text_lines.append("Metadata:")
+        for key, value in metadata.items():
+            if value:
+                text_lines.append(f"  - {key}: {value}")
+    if selected_question:
+        text_lines.append(f"Preferred question: {selected_question}")
+    text_lines.append("Message:")
+    text_lines.append(message_body or "(No additional notes provided)")
+
+    text_content = "\n".join(text_lines)
+
+    return await _dispatch_email(
+        to_email=admin_email,
+        subject=subject,
+        html=html_content,
+        text=text_content,
+    )
+
+
+async def send_contact_acknowledgement_email(
+    *,
+    contact_email: str,
+    contact_name: str,
+    topic_label: str,
+    expected_response_hours: int,
+) -> bool:
+    """Send a polite acknowledgement to the customer after form submission."""
+
+    subject = "🤝 We've received your request"
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset=\"utf-8\" /></head>
+    <body style=\"margin:0; padding:24px; background-color:#F9FAFB; font-family: 'Inter', Arial, sans-serif;\">
+        {get_email_template_header()}
+        <div style=\"background-color:#ffffff; padding:32px;\">
+            <h2 style=\"margin:0 0 16px; color:#111827; font-size:22px;\">Thanks for reaching out, {html.escape(contact_name)} 👋</h2>
+            <p style=\"color:#4B5563; font-size:15px; line-height:1.7;\">
+                We received your request about <strong>{html.escape(topic_label)}</strong> and passed it to the right team.
+                You can expect a response within <strong>{expected_response_hours} hours</strong> (usually much sooner during business hours).
+            </p>
+            <div style=\"margin:24px 0; background-color:#F9FAFB; border-radius:12px; padding:20px; border:1px solid #E5E7EB;\">
+                <p style=\"margin:0 0 8px; color:#6B7280; font-size:13px; text-transform:uppercase; letter-spacing:0.08em;\">Need to add anything?</p>
+                <p style=\"margin:0; color:#374151; font-size:14px; line-height:1.6;\">
+                    Reply directly to this email and it will reach the same support thread.
+                    We're here Monday to Friday, 9:00–19:00 IST.
+                </p>
+            </div>
+            <p style=\"color:#6B7280; font-size:13px; line-height:1.6;\">
+                — Team Prompt Detective
+            </p>
+        </div>
+        {get_email_template_footer()}
+    </body>
+    </html>
+    """
+
+    text_content = (
+        f"Hi {contact_name},\n\n"
+        f"We've received your request about {topic_label}. Our team will respond within {expected_response_hours} hours.\n\n"
+        "If you need to add more details, just reply to this email.\n\n"
+        "— Team Prompt Detective"
+    )
+
+    return await _dispatch_email(
+        to_email=contact_email,
+        subject=subject,
+        html=html_content,
+        text=text_content,
+    )
 
 
 async def send_verification_email(email: str, name: str, otp_code: str) -> bool:

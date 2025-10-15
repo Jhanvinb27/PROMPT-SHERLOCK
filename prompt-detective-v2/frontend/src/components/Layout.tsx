@@ -30,6 +30,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Link to="/pricing" className="text-gray-700 hover:text-blue-600">
                 Pricing
               </Link>
+              <Link to="/contact" className="text-gray-700 hover:text-blue-600">
+                Contact
+              </Link>
               
               {isAuthenticated ? (
                 <>
@@ -92,15 +95,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <ul className="space-y-2">
                 <li><Link to="/pricing" className="text-gray-300 hover:text-white">Pricing</Link></li>
                 <li><Link to="/dashboard" className="text-gray-300 hover:text-white">Dashboard</Link></li>
+                <li><Link to="/contact" className="text-gray-300 hover:text-white">Contact</Link></li>
                 <li><a href="/api/docs" className="text-gray-300 hover:text-white">API Docs</a></li>
               </ul>
             </div>
             <div>
               <h3 className="text-lg font-semibold mb-4">Support</h3>
               <ul className="space-y-2">
-                <li><a href="mailto:support@promptdetective.com" className="text-gray-300 hover:text-white">Contact</a></li>
-                <li><a href="/terms" className="text-gray-300 hover:text-white">Terms</a></li>
-                <li><a href="/privacy" className="text-gray-300 hover:text-white">Privacy</a></li>
+                <li><Link to="/contact" className="text-gray-300 hover:text-white">Help Centre</Link></li>
+                <li><Link to="/terms" className="text-gray-300 hover:text-white">Terms</Link></li>
+                <li><Link to="/privacy" className="text-gray-300 hover:text-white">Privacy</Link></li>
               </ul>
             </div>
           </div>

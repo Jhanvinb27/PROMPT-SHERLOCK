@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
     EMAIL_FROM_ADDRESS: str = os.getenv("EMAIL_FROM_ADDRESS", "tryreverseai@gmail.com")
     EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "Reverse AI")
+    SUPPORT_EMAIL: str = os.getenv("SUPPORT_EMAIL", "tryreverseai@gmail.com")
     
     # Brevo/Sendinblue API (FREE 300 emails/day, no domain verification needed)
     BREVO_API_KEY: Optional[str] = os.getenv("BREVO_API_KEY")

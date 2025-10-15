@@ -13,6 +13,7 @@ from .usage import router as usage_router
 # Import payment and trial routes
 from ...api.routes.payments import router as payments_router
 from ...api.routes.trials import router as trials_router
+from ...api.routes.contact import router as contact_router
 
 api_router = APIRouter()
 
@@ -25,3 +26,4 @@ api_router.include_router(admin_router)
 api_router.include_router(usage_router)
 api_router.include_router(payments_router)  # Payment gateway routes
 api_router.include_router(trials_router)    # Trial management routes
+api_router.include_router(contact_router)   # Support & contact routes

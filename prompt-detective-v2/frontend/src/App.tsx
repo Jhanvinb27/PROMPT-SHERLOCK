@@ -18,6 +18,9 @@ import UsageHistoryPage from './pages/UsageHistoryPage';
 import DebugPage from './pages/DebugPage';
 import EmailVerificationPage from './pages/EmailVerificationPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ContactPage from './pages/ContactPage';
+import TermsPage from './pages/TermsPage';
+import PrivacyPage from './pages/PrivacyPage';
 
 // Components
 import Layout from './components/Layout';
@@ -88,6 +91,9 @@ function App() {
               <Route path="/verify-email" element={<EmailVerificationPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/coming-soon" element={<ComingSoonPage />} />
 
               {/* Protected routes */}

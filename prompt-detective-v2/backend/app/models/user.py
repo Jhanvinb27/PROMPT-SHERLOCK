@@ -211,30 +211,6 @@ class OTPCode(Base):
     # Relationships
     user = relationship("User", back_populates="otp_codes")
 
-class ContactMessage(Base):
-    __tablename__ = "contact_messages"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    email = Column(String, nullable=False)
-    subject = Column(String, nullable=False)
-    message = Column(Text, nullable=False)
-    category = Column(String)  # general, billing, technical, feedback
-    status = Column(String, default="new")  # new, in_progress, resolved, closed
-    priority = Column(String, default="normal")  # low, normal, high, urgent
-    
-    # Auto-response
-    auto_response_sent = Column(Boolean, default=False)
-    
-    # Admin response
-    admin_response = Column(Text)
-    responded_at = Column(DateTime(timezone=True))
-    responded_by = Column(Integer, ForeignKey("users.id"))
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc))
-
 class EmailLog(Base):
     __tablename__ = "email_logs"
     
