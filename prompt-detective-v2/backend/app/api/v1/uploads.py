@@ -1,9 +1,7 @@
 """
 File upload and job creation endpoints - Cloud storage version
 """
-import os
-import uuid
-from typing import List
+from typing import Dict
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -11,7 +9,7 @@ from ...core.auth import get_current_active_user
 from ...database import get_db
 from ...models.user import User, AnalysisJob, UsageLog
 from ...services.analysis import queue_analysis_job
-from ...services.storage import save_upload_file, cleanup_temp_file, get_file_size
+from ...services.storage import save_upload_file
 from ...core.config import settings
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
@@ -54,8 +52,10 @@ async def upload_file(
         )
     
     try:
-        # Save uploaded file - returns (file_url, public_id, temp_path)
-        file_url, public_id, temp_path = await save_upload_file(file, current_user.id)
+        # Save uploaded file - returns storage metadata
+        storage_info = await save_upload_file(file, current_user.id)
+        file_url = storage_info.get("file_url")
+        analysis_reference: Dict = storage_info
         
         # Create analysis job
         job = AnalysisJob(
@@ -90,8 +90,8 @@ async def upload_file(
         print(f"✅ Usage logged for user {current_user.id}: analyze action at {usage_log.timestamp}")
         
         # Queue background analysis AFTER usage logging
-        # Use temp_path for local analysis (actual file), file_url is stored in DB
-        queue_analysis_job(job.id, temp_path, content_type)
+        # Pass full storage metadata for downstream handling
+        queue_analysis_job(job.id, analysis_reference, content_type)
         
         return {
             "job_id": job.id,
