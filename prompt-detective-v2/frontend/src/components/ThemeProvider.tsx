@@ -21,9 +21,7 @@ function getInitialTheme(): ThemeMode {
   if (stored === 'light' || stored === 'dark') {
     return stored;
   }
-
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  return prefersDark ? 'dark' : 'light';
+  return 'light';
 }
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
