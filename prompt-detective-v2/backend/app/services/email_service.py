@@ -2,6 +2,7 @@
 import asyncio
 import html
 import smtplib
+from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
@@ -147,8 +148,14 @@ def _send_with_smtp_sync(
     provider = (settings.EMAIL_PROVIDER or "").lower()
     host = settings.SMTP_HOST or ("smtp.gmail.com" if provider == "gmail" else None)
     port = settings.SMTP_PORT or (587 if provider == "gmail" else 25)
-    username = settings.SMTP_USERNAME or sender_email
-    password = settings.SMTP_PASSWORD
+    sender_name = sender_name.strip() if sender_name else sender_name
+    sender_email = sender_email.strip() if sender_email else sender_email
+
+    provider = (settings.EMAIL_PROVIDER or "").lower()
+    username = (settings.SMTP_USERNAME or sender_email or "").strip()
+    password = (settings.SMTP_PASSWORD or "").strip()
+    if provider in {"gmail", "google"} and password:
+        password = "".join(password.split())
     use_tls = settings.SMTP_USE_TLS
 
     if not host:
@@ -407,6 +414,117 @@ async def send_contact_acknowledgement_email(
     )
 
 
+async def send_waitlist_confirmation_email(
+    *,
+    contact_email: str,
+    plan_name: str | None,
+    source: str | None,
+    already_joined: bool,
+) -> bool:
+    """Send acknowledgement to waitlist subscribers."""
+
+    friendly_plan = plan_name.title() if plan_name else "upcoming"  # pragma: no cover - simple formatting
+    subject = "✨ You're on the Prompt Detective waitlist"
+
+    greeting_line = "You're already on our radar." if already_joined else "Thanks for reserving your spot."
+    next_steps_line = (
+        "We'll email you as soon as new seats open—expect rollout updates and yearly savings tips in your inbox."
+        if not already_joined
+        else "Sit tight while we put the finishing touches on things."
+    )
+
+    source_hint = f"We captured this from: {source}" if source else ""
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset=\"utf-8\" /></head>
+    <body style=\"margin:0; padding:24px; background-color:#F9FAFB; font-family: 'Inter', Arial, sans-serif;\">
+        {get_email_template_header()}
+        <div style=\"background-color:#ffffff; padding:32px;\">
+            <h2 style=\"margin:0 0 12px; color:#111827; font-size:22px;\">{greeting_line}</h2>
+            <p style=\"margin:0 0 16px; color:#4B5563; font-size:15px; line-height:1.7;\">
+                You've joined the waitlist for our <strong>{friendly_plan}</strong> release. {next_steps_line}
+            </p>
+            <div style=\"margin:24px 0; background-color:#F9FAFB; border-radius:12px; padding:20px; border:1px solid #E5E7EB;\">
+                <p style=\"margin:0; color:#6B7280; font-size:13px; text-transform:uppercase; letter-spacing:0.08em;\">What's next</p>
+                <ul style=\"margin:12px 0 0; padding-left:20px; color:#374151; font-size:14px; line-height:1.6;\">
+                    <li>Early access invites roll out in waves once testing wraps.</li>
+                    <li>We'll share setup guides, plan comparison charts, and special pricing.</li>
+                    <li>Reply to this email if you'd like to book a kickoff call.</li>
+                </ul>
+            </div>
+            <p style=\"color:#6B7280; font-size:13px;\">{source_hint}</p>
+        </div>
+        {get_email_template_footer()}
+    </body>
+    </html>
+    """
+
+    text_content = "\n".join(
+        [
+            greeting_line,
+            f"Waitlist plan: {friendly_plan}",
+            "We'll keep you posted with rollout updates and best-value bundles.",
+            source_hint,
+        ]
+    )
+
+    return await _dispatch_email(
+        to_email=contact_email,
+        subject=subject,
+        html=html_content,
+        text=text_content,
+    )
+
+
+async def send_account_deletion_confirmation_email(*, email: str, name: str | None) -> bool:
+    """Notify users that their account has been deleted."""
+
+    subject = "Your Prompt Detective account has been deleted"
+    display_name = name or "there"
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset=\"utf-8\" /></head>
+    <body style=\"margin:0; padding:24px; background-color:#F9FAFB; font-family: 'Inter', Arial, sans-serif;\">
+        {get_email_template_header()}
+        <div style=\"background-color:#ffffff; padding:32px;\">
+            <h2 style=\"margin:0 0 16px; color:#111827; font-size:22px;\">Goodbye for now, {html.escape(display_name)} 👋</h2>
+            <p style=\"color:#4B5563; font-size:15px; line-height:1.7;\">
+                This email confirms that your Prompt Detective account and associated analyses have been permanently deleted.
+                If you change your mind, you're always welcome to create a fresh workspace.
+            </p>
+            <div style=\"margin:24px 0; background-color:#F9FAFB; border-radius:12px; padding:20px; border:1px solid #E5E7EB;\">
+                <p style=\"margin:0; color:#6B7280; font-size:13px; text-transform:uppercase; letter-spacing:0.08em;\">What was removed</p>
+                <ul style=\"margin:12px 0 0; padding-left:20px; color:#374151; font-size:14px; line-height:1.6;\">
+                    <li>Account profile, usage history, analyses, and credit packs.</li>
+                    <li>API keys and active subscriptions.</li>
+                    <li>Support threads connected to this email.</li>
+                </ul>
+            </div>
+            <p style=\"color:#6B7280; font-size:13px;\">Need to restore anything for compliance? Reply to this email within 7 days and we'll help if data is still recoverable.</p>
+        </div>
+        {get_email_template_footer()}
+    </body>
+    </html>
+    """
+
+    text_content = (
+        "Your Prompt Detective account has been deleted. "
+        "Analyses, usage history, plans, and API keys have been removed. "
+        "Reply within 7 days if you require regulatory proof of deletion."
+    )
+
+    return await _dispatch_email(
+        to_email=email,
+        subject=subject,
+        html=html_content,
+        text=text_content,
+    )
+
+
 async def send_verification_email(email: str, name: str, otp_code: str) -> bool:
     """Send email verification OTP."""
     subject = "🔐 Verify Your Prompt Detective Account"
@@ -461,13 +579,13 @@ async def send_verification_email(email: str, name: str, otp_code: str) -> bool:
                     <li><strong>Daily reset model</strong> - Your limit resets every midnight IST</li>
                 </ul>
             </div>
-            <!-- Special Offer -->
+            <!-- Savings Tip -->
             <div style="background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%); padding: 25px; border-radius: 8px; margin: 30px 0; text-align: center;">
                 <p style="color: #ffffff; font-size: 16px; margin: 0 0 10px 0; font-weight: bold;">
-                    🎁 Limited Time Offer - First 500 Users
+                    💡 Pro tip for later
                 </p>
                 <p style="color: #E9D5FF; font-size: 14px; margin: 0;">
-                    Lock in <strong>33% OFF</strong> forever on our Starter plan (₹199/mo instead of ₹299/mo)
+                    Switch to yearly billing anytime to save <strong>17%</strong> instantly and unlock concierge onboarding when you upgrade.
                 </p>
             </div>
             <!-- Security Notice -->
@@ -498,9 +616,10 @@ async def send_verification_email(email: str, name: str, otp_code: str) -> bool:
     - 5 free analyses daily
     - Video support available on Starter plan (₹299/mo)
     - API access on Pro plan (₹699/mo)
+    - Daily reset limits that refresh at midnight IST
 
-    Limited Time Offer - First 500 Users:
-    Lock in 33% OFF forever on our Starter plan (₹199/mo)
+    Savings tip:
+    Switch to yearly billing anytime to save 17% instantly and unlock concierge onboarding when you upgrade.
 
     Security Notice: Never share this code with anyone.
 
@@ -722,14 +841,14 @@ async def send_welcome_email(email: str, name: str) -> bool:
                     💰 View Pricing
                 </a>
             </div>
-            <!-- Referral Program -->
-            <div style="background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%); padding: 25px; border-radius: 8px; margin: 30px 0; text-align: center;">
-                <h3 style="color: #92400E; margin: 0 0 10px 0; font-size: 18px;">
-                    🎁 Earn ₹150 per Referral!
+            <!-- Upgrade Guidance -->
+            <div style="background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); padding: 25px; border-radius: 8px; margin: 30px 0; text-align: center;">
+                <h3 style="color: #312E81; margin: 0 0 10px 0; font-size: 18px;">
+                    📈 Scale when you're ready
                 </h3>
-                <p style="color: #78350F; font-size: 14px; margin: 0; line-height: 1.6;">
-                    Share Prompt Detective with friends and earn ₹150 credit for every paid signup.
-                    They get 10% off too! It's a win-win. 🚀
+                <p style="color: #3730A3; font-size: 14px; margin: 0; line-height: 1.6;">
+                    Upgrade to Starter, Pro, or Business for more daily analyses, faster processing, and API workflows.
+                    Yearly subscriptions now include an automatic <strong>17% discount</strong> plus onboarding resources tailored to your team.
                 </p>
             </div>
             <!-- Support -->
@@ -768,8 +887,8 @@ async def send_welcome_email(email: str, name: str) -> bool:
     - Standard processing speed
     - Email support
 
-    Earn ₹150 per Referral!
-    Share Prompt Detective with friends and earn credits.
+    Scale when you're ready:
+    Upgrade to paid plans for more daily analyses, faster processing, and API workflows. Yearly subscriptions save 17% automatically.
 
     Need help? Email us at support@promptdetective.com
 
@@ -864,8 +983,8 @@ async def send_trial_started_email(email: str, name: str, plan: str, trial_ends:
                 </h4>
                 <p style="color: #78350F; font-size: 14px; margin: 0; line-height: 1.6;">
                     <strong>No automatic charges!</strong> After 3 days, you'll be automatically moved to our Free plan
-                    (5 analyses/day). You can upgrade anytime to keep premium features - and we're offering <strong>launch pricing
-                    (33% OFF)</strong> for early adopters like you! 🎁
+                    (5 analyses/day). Upgrade anytime to keep premium features—and when you're ready, switch to yearly billing
+                    to save <strong>17%</strong> instantly and unlock concierge onboarding.
                 </p>
             </div>
         </div>
@@ -891,7 +1010,7 @@ async def send_trial_started_email(email: str, name: str, plan: str, trial_ends:
     - Priority processing speed
     - Priority email support
 
-    No automatic charges! Upgrade anytime to keep premium features.
+    No automatic charges! Upgrade anytime to keep premium features. Switch to yearly later to save 17% and unlock concierge onboarding.
 
     © 2025 Prompt Detective. All rights reserved.
     """
@@ -946,20 +1065,16 @@ async def send_trial_expiring_soon_email(email: str, name: str, plan: str, hours
             <!-- Special Offer -->
             <div style="background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%); padding: 30px; border-radius: 12px; margin: 30px 0; text-align: center;">
                 <h3 style="color: #ffffff; margin: 0 0 15px 0; font-size: 24px;">
-                    🎁 Exclusive Launch Offer
+                    💡 Keep Your Premium Flow Going
                 </h3>
-                <p style="color: #E9D5FF; font-size: 16px; margin: 0 0 20px 0; line-height: 1.6;">
-                    Upgrade now and <strong>lock in 33% OFF forever!</strong><br>
-                    First 500 users only - Don't miss out!
+                <p style="color: #E9D5FF; font-size: 16px; margin: 0 0 16px 0; line-height: 1.6;">
+                    Upgrade before the timer runs out to keep video analysis, faster processing, and higher limits.
+                    Want the best value? Switch to yearly billing when you upgrade to save <strong>17%</strong> instantly
+                    and unlock concierge onboarding on applicable plans.
                 </p>
-                <div style="background-color: rgba(255,255,255,0.2); padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    {"<p style='color: #ffffff; font-size: 20px; margin: 0;'><strike>₹299/mo</strike> → <strong>₹199/mo</strong></p>" if plan == "starter" else ""}
-                    {"<p style='color: #ffffff; font-size: 20px; margin: 0;'><strike>₹699/mo</strike> → <strong>₹499/mo</strong></p>" if plan == "pro" else ""}
-                    {"<p style='color: #ffffff; font-size: 20px; margin: 0;'><strike>₹1,499/mo</strike> → <strong>₹999/mo</strong></p>" if plan == "business" else ""}
-                    <p style="color: #E9D5FF; font-size: 14px; margin: 10px 0 0 0;">
-                        💎 Pay this price forever - even when others pay more!
-                    </p>
-                </div>
+                {"<p style='color: #C4B5FD; font-size: 15px; margin: 12px 0 0 0;'>Starter is ₹299/mo — flip to yearly anytime and save 17%.</p>" if plan == "starter" else ""}
+                {"<p style='color: #C4B5FD; font-size: 15px; margin: 12px 0 0 0;'>Pro is ₹699/mo — yearly saves 17% and adds priority onboarding.</p>" if plan == "pro" else ""}
+                {"<p style='color: #C4B5FD; font-size: 15px; margin: 12px 0 0 0;'>Business is ₹1,499/mo — yearly saves 17% plus white-glove setup.</p>" if plan == "business" else ""}
             </div>
             <!-- CTA -->
             <div style="text-align: center; margin: 40px 0;">
@@ -967,7 +1082,7 @@ async def send_trial_expiring_soon_email(email: str, name: str, plan: str, hours
                    style="display: inline-block; background: linear-gradient(135deg, #10B981 0%, #059669 100%);
                           color: #ffffff; text-decoration: none; padding: 18px 50px; border-radius: 10px;
                           font-weight: bold; font-size: 18px; margin: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                    🚀 Lock In My Discount
+                    ✨ Upgrade Now
                 </a>
             </div>
             <!-- What You'll Keep -->
@@ -1000,8 +1115,8 @@ async def send_trial_expiring_soon_email(email: str, name: str, plan: str, hours
 
     Trial Ends On: {trial_ends_str}
 
-    Exclusive Launch Offer:
-    Upgrade now and lock in 33% OFF forever!
+    Upgrade now to keep premium tools active.
+    Switch to yearly billing anytime to save 17% and get concierge onboarding support.
 
     Keep Premium Features:
     - Enhanced daily analyses
@@ -1062,15 +1177,19 @@ async def send_trial_expired_email(email: str, name: str, trial_plan: str) -> bo
             <!-- Upgrade Offer -->
             <div style="background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%); padding: 30px; border-radius: 12px; margin: 30px 0; text-align: center;">
                 <h3 style="color: #ffffff; margin: 0 0 15px 0; font-size: 24px;">
-                    🎁 Last Chance: Launch Pricing
+                    🚀 Ready to Keep the Pro Tools?
                 </h3>
-                <p style="color: #E9D5FF; font-size: 16px; margin: 0 0 20px 0;">
-                    Lock in <strong>33% OFF forever</strong> - First 500 users only!
+                <p style="color: #E9D5FF; font-size: 16px; margin: 0 0 16px 0; line-height: 1.6;">
+                    Upgrade whenever you're ready to reactivate premium features. Prefer the best value?
+                    Yearly billing saves <strong>17%</strong> instantly and includes concierge onboarding on Pro and Business plans.
+                </p>
+                <p style="color: #C4B5FD; font-size: 14px; margin: 12px 0 0 0;">
+                    Monthly plans start at ₹299. You can switch to yearly inside your dashboard anytime.
                 </p>
                 <a href="https://prompt-detective.vercel.app/pricing"
                    style="display: inline-block; background-color: #ffffff; color: #8B5CF6; text-decoration: none;
-                          padding: 16px 40px; border-radius: 10px; font-weight: bold; font-size: 16px; margin: 10px;">
-                    💰 View Plans & Upgrade
+                          padding: 16px 40px; border-radius: 10px; font-weight: bold; font-size: 16px; margin: 18px 10px 0;">
+                    ✨ Explore Plans
                 </a>
             </div>
         </div>
@@ -1091,10 +1210,10 @@ async def send_trial_expired_email(email: str, name: str, trial_plan: str) -> bo
     - Image-to-prompt conversion
     - Email support
 
-    Last Chance: Lock in 33% OFF forever!
-    First 500 users only.
+    Upgrade anytime to reactivate premium features. Monthly plans start at ₹299.
+    Switch to yearly billing when you're ready to save 17% and unlock concierge onboarding on higher tiers.
 
-    Upgrade: https://prompt-detective.vercel.app/pricing
+    Explore plans: https://prompt-detective.vercel.app/pricing
 
     © 2025 Prompt Detective. All rights reserved.
     """

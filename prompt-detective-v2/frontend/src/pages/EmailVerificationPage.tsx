@@ -1,15 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Mail, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
-import OTPInput from '../components/OTPInput';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { AlertCircle, ArrowLeft, CheckCircle, Clock, Mail, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 import axios from 'axios';
+import PageContainer from '../components/page/PageContainer';
+import PageHeader from '../components/PageHeader';
+import PageSection from '../components/page/PageSection';
+import Card from '../components/ui/Card';
+import Chip from '../components/ui/Chip';
+import { Button } from '../components/ui/Button';
+import OTPInput from '../components/OTPInput';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 const EmailVerificationPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const email = location.state?.email || '';
+  const email: string = location.state?.email ?? '';
 
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,35 +24,51 @@ const EmailVerificationPage: React.FC = () => {
   const [resendDisabled, setResendDisabled] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
-  useEffect(() => {
-    if (!email) {
-      navigate('/login');
-      return;
-    }
-    
-    // Auto-send OTP on page load
-    handleResendOTP();
-  }, []);
+  const verificationBenefits = useMemo(
+    () => [
+      {
+        label: 'Secure-first onboarding',
+        tone: 'emerald' as const,
+        description: 'Two-step verification locks your workspace to trusted collaborators only.',
+      },
+      {
+        label: 'Global delivery network',
+        tone: 'blue' as const,
+        description: 'Codes arrive within seconds via redundant email pathways, even during peak hours.',
+      },
+      {
+        label: 'Priority support',
+        tone: 'purple' as const,
+        description: 'Need help? Our concierge team responds in under 10 minutes during IST business hours.',
+      },
+    ],
+    []
+  );
 
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    } else {
-      setResendDisabled(false);
-    }
-  }, [countdown]);
+  const requestVerificationCode = useCallback(async () => {
+    if (!email) return;
+    setLoading(true);
+    setError('');
+    setOtp('');
 
-  useEffect(() => {
-    // Auto-submit when OTP is complete
-    if (otp.length === 6 && !loading) {
-      handleVerifyOTP();
+    try {
+      await axios.post(`${API_BASE_URL}/auth/email-verification/request`, { email });
+      setResendDisabled(true);
+      setCountdown(120);
+    } catch (requestError: unknown) {
+      const message =
+        typeof requestError === 'object' && requestError && 'response' in requestError
+          ? (requestError as any).response?.data?.detail
+          : undefined;
+      setError(message || 'Failed to send verification code. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  }, [otp]);
+  }, [email]);
 
-  const handleVerifyOTP = async () => {
+  const handleVerifyOtp = useCallback(async () => {
     if (otp.length !== 6) {
-      setError('Please enter the complete 6-digit code');
+      setError('Please enter the 6-digit code we emailed you.');
       return;
     }
 
@@ -56,173 +78,185 @@ const EmailVerificationPage: React.FC = () => {
     try {
       const response = await axios.post(`${API_BASE_URL}/auth/email-verification/verify`, {
         email,
-        otp_code: otp
+        otp_code: otp,
       });
 
-      if (response.data.message) {
+      if (response.data?.message) {
         setSuccess(true);
         setTimeout(() => {
-          navigate('/dashboard', { 
-            state: { message: 'Email verified successfully! Welcome to Prompt Detective 🎉' }
+          navigate('/dashboard', {
+            state: { message: 'Email verified successfully! Welcome to Prompt Detective 🎉' },
           });
-        }, 2000);
+        }, 2200);
       }
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Invalid OTP. Please try again.');
-      setOtp(''); // Clear OTP on error
+    } catch (verificationError: unknown) {
+      const message =
+        typeof verificationError === 'object' && verificationError && 'response' in verificationError
+          ? (verificationError as any).response?.data?.detail
+          : undefined;
+      setError(message || 'Invalid code. Please try again.');
+      setOtp('');
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, navigate, otp]);
 
-  const handleResendOTP = async () => {
-    if (resendDisabled) return;
-
-    setLoading(true);
-    setError('');
-    setOtp('');
-
-    try {
-      await axios.post(`${API_BASE_URL}/auth/email-verification/request`, {
-        email
-      });
-
-      setResendDisabled(true);
-      setCountdown(120); // 2 minutes cooldown
-      setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to resend OTP');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!email) {
+      navigate('/login');
+      return;
     }
+    void requestVerificationCode();
+  }, [email, navigate, requestVerificationCode]);
+
+  useEffect(() => {
+    if (!resendDisabled) return;
+    if (countdown <= 0) {
+      setResendDisabled(false);
+      return;
+    }
+    const timer = setTimeout(() => setCountdown((value) => value - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown, resendDisabled]);
+
+  useEffect(() => {
+    if (otp.length === 6 && !loading && !success) {
+      void handleVerifyOtp();
+    }
+  }, [otp, loading, success, handleVerifyOtp]);
+
+  const handleResend = () => {
+    if (loading || resendDisabled) return;
+    void requestVerificationCode();
   };
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8 text-center">
-          <div className="mb-6">
-            <CheckCircle className="w-20 h-20 text-green-500 mx-auto animate-bounce" />
-          </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Email Verified! 🎉
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Your account is now active. Redirecting to dashboard...
-          </p>
-          <div className="animate-pulse flex justify-center">
-            <div className="w-8 h-8 bg-purple-500 rounded-full"></div>
-          </div>
-        </div>
-      </div>
+      <PageContainer>
+        <PageHeader
+          title="Email verified"
+          subtitle="Your workspace is now secured. We’re redirecting you to the dashboard."
+          breadcrumbs={[{ label: 'Account', href: '/signup' }, { label: 'Verification' }]}
+          illustration={<CheckCircle className="h-12 w-12 text-emerald-500" />}
+        />
+        <PageSection icon={<Sparkles className="h-6 w-6" />} title="You’re all set" variant="translucent">
+          <Card variant="elevated" padding="lg" className="flex flex-col items-center gap-4 text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500/10 text-emerald-500 dark:bg-emerald-400/10 dark:text-emerald-300">
+              <CheckCircle className="h-10 w-10" />
+            </div>
+            <p className="text-xl font-semibold text-gray-900 dark:text-slate-100">Email confirmed</p>
+            <p className="max-w-md text-sm text-gray-500 dark:text-slate-400">
+              Your login is secure and analytics syncing is unlocked. Sit tight while we take you to the dashboard.
+            </p>
+            <div className="flex items-center gap-2 rounded-full border border-emerald-200/60 bg-emerald-50/80 px-4 py-2 text-xs font-semibold text-emerald-600 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+              <Clock className="h-3.5 w-3.5" /> Redirecting…
+            </div>
+          </Card>
+        </PageSection>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="mb-4 flex justify-center">
-            <div className="p-4 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full">
-              <Mail className="w-12 h-12 text-white" />
+    <PageContainer>
+      <PageHeader
+        title="Verify your email"
+        subtitle="We just sent a six-digit code. Enter it below to activate your Prompt Detective workspace."
+        breadcrumbs={[{ label: 'Account', href: '/signup' }, { label: 'Verification' }]}
+        primaryAction={{ label: 'Need a new email?', onClick: () => navigate('/signup') }}
+        secondaryAction={{ label: 'Back to login', onClick: () => navigate('/login') }}
+        illustration={<Mail className="h-12 w-12 text-indigo-500" />}
+      />
+
+      <div className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">
+        <PageSection
+          title="Powering secure insights"
+          description="Verification routes requests through redundant providers and rate limits the experience to keep your data safe."
+          icon={<ShieldCheck className="h-6 w-6" />}
+          variant="translucent"
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            {verificationBenefits.map((item) => (
+              <Card key={item.label} variant="outline" padding="md" className="flex h-full flex-col gap-3 bg-white/85 dark:bg-slate-900/70">
+                <Chip tone={item.tone} size="sm">{item.label}</Chip>
+                <p className="text-base font-semibold text-gray-900 dark:text-slate-100">{item.description}</p>
+                <span className="text-xs uppercase tracking-wide text-gray-400 dark:text-slate-500">Enterprise-grade defaults</span>
+              </Card>
+            ))}
+          </div>
+
+          <div className="mt-6 space-y-3 rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_18px_45px_-25px_rgba(59,130,246,0.45)] dark:border-white/5 dark:bg-slate-900/70 dark:shadow-[0_18px_50px_-25px_rgba(15,23,42,0.65)]">
+            <Chip tone="blue" size="sm">Deliverability tips</Chip>
+            <ul className="space-y-2 text-sm text-gray-600 dark:text-slate-300">
+              <li>• Add hello@promptdetective.ai to your contacts to whitelist the sender.</li>
+              <li>• Check your Promotions or Spam folders if the email doesn’t appear within 30 seconds.</li>
+              <li>• Still nothing? Resend the code or reach us at support for a manual activation link.</li>
+            </ul>
+          </div>
+        </PageSection>
+
+        <PageSection
+          title="Enter the 6-digit code"
+          description={`We sent an authentication code to ${email || 'your email'}.`}
+          icon={<Sparkles className="h-6 w-6" />}
+        >
+          <Card variant="elevated" padding="lg" className="space-y-6 bg-white/90 dark:bg-slate-900/85">
+            <div className="space-y-4 text-sm text-gray-600 dark:text-slate-300">
+              <p className="font-semibold text-gray-800 dark:text-slate-100">Step 1 · Retrieve the code</p>
+              <p>Open the email titled “Prompt Detective Verification” and copy the six digits we sent to you.</p>
             </div>
-          </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            Verify Your Email
-          </h2>
-          <p className="text-gray-600">
-            We've sent a 6-digit code to
-          </p>
-          <p className="text-purple-600 font-semibold mt-1">
-            {email}
-          </p>
-        </div>
 
-        {/* OTP Input */}
-        <div className="mb-6">
-          <OTPInput
-            length={6}
-            value={otp}
-            onChange={setOtp}
-            disabled={loading}
-            error={!!error}
-          />
-        </div>
+            <OTPInput length={6} value={otp} onChange={setOtp} disabled={loading} error={Boolean(error)} />
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start">
-            <AlertCircle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
-
-        {/* Loading Indicator */}
-        {loading && (
-          <div className="mb-4 text-center">
-            <div className="inline-flex items-center text-purple-600">
-              <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-              <span>Verifying...</span>
-            </div>
-          </div>
-        )}
-
-        {/* Resend Button */}
-        <div className="text-center mb-6">
-          <p className="text-sm text-gray-600 mb-2">
-            Didn't receive the code?
-          </p>
-          <button
-            onClick={handleResendOTP}
-            disabled={resendDisabled || loading}
-            className={`text-sm font-semibold ${
-              resendDisabled || loading
-                ? 'text-gray-400 cursor-not-allowed'
-                : 'text-purple-600 hover:text-purple-700'
-            }`}
-          >
-            {resendDisabled ? (
-              <span>Resend in {countdown}s</span>
-            ) : (
-              <span className="flex items-center justify-center">
-                <RefreshCw className="w-4 h-4 mr-1" />
-                Resend Code
-              </span>
+            {error && (
+              <div className="flex items-start gap-3 rounded-2xl border border-rose-200/60 bg-rose-50/70 px-4 py-3 text-sm text-rose-600 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+                <AlertCircle className="h-4 w-4" />
+                <span>{error}</span>
+              </div>
             )}
-          </button>
-        </div>
 
-        {/* Info Box */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <h3 className="text-sm font-semibold text-blue-900 mb-2">
-            📧 Check Your Email
-          </h3>
-          <ul className="text-xs text-blue-700 space-y-1">
-            <li>• Code expires in 10 minutes</li>
-            <li>• Check spam/junk folder if not received</li>
-            <li>• Make sure {email} is correct</li>
-          </ul>
-        </div>
+            {loading && (
+              <div className="flex items-center justify-center gap-2 text-sm font-semibold text-indigo-600 dark:text-indigo-300">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Processing…</span>
+              </div>
+            )}
 
-        {/* Change Email Link */}
-        <div className="text-center">
-          <button
-            onClick={() => navigate('/signup')}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
-            Wrong email? Sign up again
-          </button>
-        </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-500 dark:text-slate-400">
+              <span>Didn’t receive the code?</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleResend}
+                disabled={loading || resendDisabled}
+                className="rounded-full"
+                trailingIcon={<RefreshCw className="h-4 w-4" />}
+              >
+                {resendDisabled ? `Resend available in ${countdown}s` : 'Resend code'}
+              </Button>
+            </div>
 
-        {/* Footer */}
-        <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-          <p className="text-xs text-gray-500">
-            🔒 Your information is secure and encrypted
-          </p>
-        </div>
+            <div className="rounded-2xl border border-gray-200/70 bg-white/60 p-4 text-xs text-gray-500 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-300">
+              <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">Verification window</p>
+              <p className="mt-1">Codes expire in 10 minutes. If the timer runs out, request a fresh one above.</p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 text-gray-500 transition hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100"
+                onClick={() => navigate('/signup')}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Use a different email
+              </button>
+              <Button size="sm" onClick={handleVerifyOtp} isLoading={loading}>
+                Verify and continue
+              </Button>
+            </div>
+          </Card>
+        </PageSection>
       </div>
-    </div>
+    </PageContainer>
   );
 };
 

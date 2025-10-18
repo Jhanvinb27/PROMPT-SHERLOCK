@@ -95,8 +95,7 @@ class RazorpayService:
         billing_cycle: str,
         razorpay_order_id: str,
         razorpay_payment_id: str,
-        razorpay_signature: str,
-        is_launch_pricing: bool = False
+        razorpay_signature: str
     ) -> Subscription:
         """
         Process subscription payment and activate subscription
@@ -109,7 +108,6 @@ class RazorpayService:
             razorpay_order_id: Razorpay order ID
             razorpay_payment_id: Razorpay payment ID
             razorpay_signature: Payment signature
-            is_launch_pricing: Whether user gets launch pricing
         
         Returns:
             Subscription object
@@ -176,9 +174,7 @@ class RazorpayService:
             started_at=now,
             expires_at=expires_at,
             next_billing_date=next_billing,
-            auto_renew=True,
-            is_launch_pricing=is_launch_pricing,
-            locked_price=amount_paid if is_launch_pricing else None
+            auto_renew=True
         )
         db.add(subscription)
         

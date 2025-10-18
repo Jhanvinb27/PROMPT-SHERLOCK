@@ -2,22 +2,22 @@ import React from 'react';
 
 const TermsPage: React.FC = () => {
   return (
-    <div className="bg-slate-50 py-16">
+    <div className="bg-slate-50 py-16 dark:bg-[#050916]">
       <div className="mx-auto max-w-5xl px-6 lg:px-8">
-        <header className="border-b border-slate-200 pb-10">
-          <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Legal</p>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+        <header className="border-b border-slate-200 pb-10 dark:border-slate-800/80">
+          <p className="text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-indigo-300">Legal</p>
+          <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
             Prompt Detective Terms of Service
           </h1>
-          <p className="mt-3 max-w-3xl text-base text-slate-600">
-            These Terms of Service (the "Terms") form a binding agreement between you and Prompt Detective Labs Private
+          <p className="mt-3 max-w-3xl text-base text-slate-600 dark:text-white/80">
+            These Terms of Service (the "Terms") form a binding agreement between you and Reverse AI Labs
             Limited ("Prompt Detective", "we", "our", or "us"). By accessing or using our products, applications,
             and services (collectively, the "Services"), you agree to be bound by these Terms.
           </p>
-          <p className="mt-3 text-xs text-slate-400">Effective date: 16 September 2024. Last updated: 16 September 2024.</p>
+          <p className="mt-3 text-xs text-slate-400 dark:text-white/60">Effective date: 16 September 2024. Last updated: 16 September 2024.</p>
         </header>
 
-        <div className="prose prose-slate mt-12 max-w-none">
+        <div className="prose prose-slate mt-12 max-w-none dark:prose-invert dark:prose-headings:text-white dark:prose-p:text-white/80 dark:prose-li:text-white/80 dark:prose-strong:text-white">
           <section>
             <h2>1. Eligibility</h2>
             <p>

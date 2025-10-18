@@ -47,7 +47,8 @@ async def google_oauth(oauth_data: GoogleOAuthRequest, db: Session = Depends(get
     """Handle Google OAuth callback"""
     return await google_oauth_callback(
         code=oauth_data.code,
-        redirect_uri=oauth_data.redirect_uri
+        redirect_uri=oauth_data.redirect_uri,
+        db=db
     )
 
 @router.post("/password-reset/request")

@@ -1,13 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Check,
+  Clock,
+  Copy,
+  Download,
+  Eye,
+  Film,
+  History,
+  Image as ImageIcon,
+  Loader2,
+  Sparkles,
+  Upload,
+} from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useUpload } from '../hooks/useUpload';
 import { UploadComponent } from '../components/UploadComponent';
 import ProgressModal from '../components/ProgressModal';
-import TutorialModal from '../components/TutorialModal';
 import UsageStatus from '../components/UsageStatus';
 import JobResultModal from '../components/JobResultModal';
-import { useNavigate } from 'react-router-dom';
-import { History, Eye, Copy, Download, Check } from 'lucide-react';
+import PageContainer from '../components/page/PageContainer';
+import PageSection from '../components/page/PageSection';
+import PageHeader from '../components/PageHeader';
+import Card from '../components/ui/Card';
+import Chip from '../components/ui/Chip';
+import { Button } from '../components/ui/Button';
+import { useUiStore } from '../stores/uiStore';
 
 interface JobResult {
   job_id: string;
@@ -42,48 +60,69 @@ interface JobResult {
   thumbnail_url?: string;
 }
 
+const statusConfig = (status?: JobResult['status']) => {
+  switch (status) {
+    case 'completed':
+      return { label: 'Completed', tone: 'emerald' as const };
+    case 'processing':
+      return { label: 'Processing', tone: 'amber' as const };
+    case 'pending':
+      return { label: 'Queued', tone: 'blue' as const };
+    case 'failed':
+      return { label: 'Failed', tone: 'rose' as const };
+    default:
+      return { label: 'Unknown', tone: 'gray' as const };
+  }
+};
+
+const formatDate = (value: string) => {
+  try {
+    return new Date(value).toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  } catch (error) {
+    return value;
+  }
+};
+
+const formatProcessingTime = (seconds?: number) => {
+  if (!seconds) return '—';
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds}s`;
+};
+
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const { uploadFile, listJobs } = useUpload();
   const navigate = useNavigate();
+  const uploadRef = useRef<HTMLDivElement>(null);
   const [recentAnalyses, setRecentAnalyses] = useState<JobResult[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [activeJobInfo, setActiveJobInfo] = useState<{
-    filename: string;
-    contentType: string;
-  } | null>(null);
+  const [activeJobInfo, setActiveJobInfo] = useState<{ filename: string; contentType: string } | null>(null);
   const [selectedJob, setSelectedJob] = useState<JobResult | null>(null);
   const [showJobModal, setShowJobModal] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
+  const { openTutorial } = useUiStore();
 
-  // Tutorial system initialization
   useEffect(() => {
-    // Check for tutorial when user is available and component is mounted
-    if (user && user.id) {
-      const tutorialKey = `hasSeenTutorial_${user.id}`;
-      const hasSeenTutorial = localStorage.getItem(tutorialKey);
-      
-      console.log('Tutorial check:', { userId: user.id, hasSeenTutorial, tutorialKey });
-      
-      if (!hasSeenTutorial) {
-        // Small delay to ensure DOM is ready
-        setTimeout(() => {
-          setShowTutorial(true);
-        }, 500);
-      }
+    if (!user?.id) {
+      return;
     }
-  }, [user]);
 
-  const handleTutorialComplete = () => {
-    if (user && user.id) {
-      const tutorialKey = `hasSeenTutorial_${user.id}`;
-      localStorage.setItem(tutorialKey, 'true');
-      console.log('Tutorial completed for user:', user.id);
+    const tutorialKey = `hasSeenTutorial_${user.id}`;
+    const hasSeenTutorial = localStorage.getItem(tutorialKey);
+
+    if (!hasSeenTutorial) {
+      const timeout = setTimeout(() => openTutorial('auto'), 500);
+      return () => clearTimeout(timeout);
     }
-    setShowTutorial(false);
-  };
+
+    return undefined;
+  }, [openTutorial, user?.id]);
 
   useEffect(() => {
     loadRecentJobs();
@@ -105,44 +144,22 @@ const DashboardPage: React.FC = () => {
 
   const handleUpload = async (file: File) => {
     try {
-      console.log('🚀 Starting upload for file:', file.name);
-      
-      // Generate a temporary job ID to show modal immediately
-      const tempJobId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Immediately show progress modal with initial state
-      setActiveJobInfo({
-        filename: file.name,
-        contentType: file.type
-      });
+      const tempJobId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      setActiveJobInfo({ filename: file.name, contentType: file.type });
       setActiveJobId(tempJobId);
-      console.log('✅ Progress modal triggered immediately with temp ID:', tempJobId);
-      
-      const response = await uploadFile(file, (progress) => {
-        console.log('📤 Upload progress:', progress);
-      });
-      
-      console.log('📡 Upload response received:', response);
-      
-      // Set real job ID from response - handle different response formats
+
+      const response = await uploadFile(file);
       const realJobId = response.job_id || (response as any).id || (response as any).jobId;
+
       if (realJobId) {
-        console.log('🔄 Updating to real job ID:', realJobId);
-        setActiveJobId(String(realJobId)); // Update with real job ID
-        
-        // Refresh recent jobs after upload
-        setTimeout(() => {
-          loadRecentJobs();
-        }, 1000);
+        setActiveJobId(String(realJobId));
+        setTimeout(loadRecentJobs, 1000);
       } else {
-        console.error('❌ No job ID in upload response:', response);
-        // Clear the modal if no job ID received
         setActiveJobId(null);
         setActiveJobInfo(null);
       }
     } catch (error) {
-      console.error('💥 Upload failed:', error);
-      // Clear the modal on error
+      console.error('Upload failed:', error);
       setActiveJobId(null);
       setActiveJobInfo(null);
     }
@@ -171,301 +188,315 @@ const DashboardPage: React.FC = () => {
 
   const handleDownloadPrompt = (job: JobResult) => {
     if (!job.main_prompt) return;
-    
     const blob = new Blob([job.main_prompt], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${job.filename}_prompt.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${job.filename}_prompt.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
   };
 
-  const getDashboardStats = () => {
-    const completedJobs = recentAnalyses.filter(job => job.status === 'completed').length;
-    const processingJobs = recentAnalyses.filter(job => job.status === 'processing' || job.status === 'pending').length;
-    const avgProcessingTime = recentAnalyses
-      .filter(job => job.processing_time_seconds)
-      .reduce((acc, job) => acc + (job.processing_time_seconds || 0), 0) / 
-      Math.max(1, recentAnalyses.filter(job => job.processing_time_seconds).length);
+  const stats = useMemo(() => {
+    const completedJobs = recentAnalyses.filter((job) => job.status === 'completed').length;
+    const processingJobs = recentAnalyses.filter((job) => job.status === 'processing' || job.status === 'pending').length;
+    const processingTimes = recentAnalyses.filter((job) => typeof job.processing_time_seconds === 'number');
+    const avgProcessingTime =
+      processingTimes.reduce((acc, job) => acc + (job.processing_time_seconds || 0), 0) /
+      Math.max(1, processingTimes.length);
 
     return {
       completedJobs,
       processingJobs,
-      avgProcessingTime: Math.round(avgProcessingTime)
+      avgProcessingTime: Math.round(avgProcessingTime),
+      totalTracked: recentAnalyses.length,
     };
-  };
+  }, [recentAnalyses]);
 
-  const stats = getDashboardStats();
+  const highlightCards = useMemo(
+    () => [
+      {
+        key: 'completed',
+        label: 'Recent completions',
+        value: stats.completedJobs,
+        helper: 'Past five uploads',
+        icon: <Check className="h-5 w-5 text-emerald-500" />,
+      },
+      {
+        key: 'processing',
+        label: 'In flight',
+        value: stats.processingJobs,
+        helper: 'Live in the queue',
+        icon: <Clock className="h-5 w-5 text-amber-500" />,
+      },
+      {
+        key: 'average',
+        label: 'Average processing',
+        value: stats.avgProcessingTime ? `${stats.avgProcessingTime}s` : '—',
+        helper: 'Across recent jobs',
+        icon: <Sparkles className="h-5 w-5 text-indigo-500" />,
+      },
+      {
+        key: 'tracked',
+        label: 'Jobs tracked',
+        value: stats.totalTracked,
+        helper: 'Latest refresh window',
+        icon: <History className="h-5 w-5 text-blue-500" />,
+      },
+    ],
+    [stats]
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Header with Usage Status */}
-        <div className="mb-8">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl p-8 shadow-xl">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h1 className="text-4xl font-bold mb-2">
-                  Welcome back, {user?.full_name || user?.email}! 🎬
-                </h1>
-                <p className="text-blue-100 text-lg">
-                  Transform any video or image into powerful AI prompts with advanced reverse engineering
-                </p>
-              </div>
-              <div className="ml-8 flex items-center space-x-3">
-                <UsageStatus compact={true} />
-                <button
-                  onClick={() => setShowTutorial(true)}
-                  className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium transition-colors"
-                  title="Show Tutorial"
-                >
-                  Help
-                </button>
-              </div>
-            </div>
-            
-            {/* Dashboard Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <h3 className="text-sm font-medium text-blue-100 uppercase tracking-wide">Completed Jobs</h3>
-                <p className="text-3xl font-bold text-white mt-2">{stats.completedJobs}</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <h3 className="text-sm font-medium text-blue-100 uppercase tracking-wide">Processing</h3>
-                <p className="text-3xl font-bold text-white mt-2">{stats.processingJobs}</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <h3 className="text-sm font-medium text-blue-100 uppercase tracking-wide">Avg Time (s)</h3>
-                <p className="text-3xl font-bold text-white mt-2">{stats.avgProcessingTime || 0}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+    <PageContainer>
+      <PageHeader
+        title={`Welcome back, ${user?.full_name || user?.email || 'Creator'}`}
+        subtitle="Reverse engineer visuals with cinematic insight, track every upload, and export shareable prompts in seconds."
+        breadcrumbs={[{ label: 'Dashboard' }]}
+        primaryAction={{
+          label: 'Upload asset',
+          onClick: () => uploadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+        }}
+        secondaryAction={{
+          label: 'View history',
+          onClick: () => navigate('/history'),
+        }}
+        illustration={<Sparkles className="h-12 w-12 text-indigo-500" />}
+      />
 
-        {/* Usage Status Full Display */}
-        <div className="mb-8">
-          <UsageStatus compact={false} />
-        </div>
+      <div className="flex flex-wrap gap-3 text-sm text-gray-500 dark:text-slate-400">
+        <Chip tone="blue" size="sm">Live usage tracker</Chip>
+        <Chip tone="emerald" size="sm">Frame-by-frame analysis</Chip>
+        <Chip tone="purple" size="sm">Download prompts as TXT</Chip>
+      </div>
 
-        {/* Upload Section */}
-        <div className="bg-white shadow-xl rounded-2xl mb-8 border border-gray-100">
-          <div className="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-2xl">
-            <h2 className="text-2xl font-bold text-gray-900">
-              🚀 Upload New File
-            </h2>
-            <p className="mt-2 text-gray-600">
-              Drop your video or image to unlock its AI prompt secrets
-            </p>
-          </div>
-          <div className="p-8">
-            <UploadComponent
-              onUpload={handleUpload}
-              maxFileSize={100 * 1024 * 1024}
-              acceptedTypes={['image/*', 'video/*']}
-              disabled={false}
-            />
-          </div>
-        </div>
-
-        {/* Recent Jobs Section */}
-        <div className="bg-white shadow-xl rounded-2xl border border-gray-100">
-          <div className="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-2xl">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  📊 Recent Analysis Jobs
-                </h2>
-                <p className="mt-2 text-gray-600">
-                  Track your reverse engineering progress and results
-                </p>
-              </div>
-              <button
-                onClick={() => navigate('/history')}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
+      <PageSection
+        title="Today's signal"
+        description="Monitor usage, see active jobs, and stay ahead of processing times without leaving the dashboard."
+        icon={<Sparkles className="h-6 w-6" />}
+        actions={
+          <Button variant="ghost" size="sm" onClick={() => openTutorial('dashboard')}>
+            Launch guided tour
+          </Button>
+        }
+        variant="translucent"
+      >
+        <div className="grid gap-6 lg:grid-cols-[1.3fr,0.7fr]">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {highlightCards.map((card) => (
+              <Card
+                key={card.key}
+                variant="outline"
+                padding="md"
+                className="flex flex-col gap-3 bg-white/85 dark:bg-slate-900/70"
               >
-                <History className="w-4 h-4 mr-2" />
-                View All History
-              </button>
-            </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-500 dark:text-slate-400">{card.label}</span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-indigo-500/10 dark:text-indigo-200">
+                    {card.icon}
+                  </span>
+                </div>
+                <p className="text-3xl font-semibold text-gray-900 dark:text-slate-100">{card.value}</p>
+                <span className="text-xs uppercase tracking-wide text-gray-400 dark:text-slate-500">{card.helper}</span>
+              </Card>
+            ))}
           </div>
-          <div className="p-8">
-            {isLoadingHistory ? (
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
-                <p className="text-gray-500">Loading recent jobs...</p>
-              </div>
-            ) : recentAnalyses.length > 0 ? (
-              <div className="space-y-6">
-                {recentAnalyses.map((job) => (
-                  <div key={job.job_id} className="bg-gradient-to-r from-white to-gray-50 border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all duration-200">
-                    <div className="flex items-start space-x-4">
-                      {/* Thumbnail */}
-                      <div className="flex-shrink-0 w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center">
+          <UsageStatus className="h-full" />
+        </div>
+      </PageSection>
+
+      <div ref={uploadRef} />
+      <PageSection
+        title="Upload new analysis"
+        description="Drop an image or motion clip. We keep you informed with snackbars while the pipeline runs."
+        icon={<Upload className="h-6 w-6" />}
+      >
+        <UploadComponent
+          onUpload={handleUpload}
+          maxFileSize={100 * 1024 * 1024}
+          acceptedTypes={['image/*', 'video/*']}
+          disabled={false}
+        />
+        <div className="mt-6 grid gap-3 sm:grid-cols-3 text-sm text-gray-500 dark:text-slate-400">
+          <div className="flex items-center gap-3 rounded-2xl border border-gray-200/60 bg-white/80 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <Film className="h-4 w-4 text-purple-500" />
+            <span>Video up to 5 minutes · 100MB</span>
+          </div>
+          <div className="flex items-center gap-3 rounded-2xl border border-gray-200/60 bg-white/80 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <ImageIcon className="h-4 w-4 text-emerald-500" />
+            <span>Images JPG, PNG, WEBP · transparency safe</span>
+          </div>
+          <div className="flex items-center gap-3 rounded-2xl border border-gray-200/60 bg-white/80 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <Clock className="h-4 w-4 text-blue-500" />
+            <span>Average turnaround under 90 seconds</span>
+          </div>
+        </div>
+      </PageSection>
+
+      <PageSection
+        title="Latest runs"
+        description="Peek into the most recent analyses. Open any job to inspect the full prompt breakdown."
+        icon={<History className="h-6 w-6" />}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => navigate('/history')}>
+            View all history
+          </Button>
+        }
+      >
+        {isLoadingHistory ? (
+          <div className="flex items-center justify-center gap-3 rounded-3xl border border-dashed border-blue-300/70 bg-blue-50/40 p-10 text-blue-600 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-200">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Fetching your latest analyses…</span>
+          </div>
+        ) : recentAnalyses.length > 0 ? (
+          <div className="space-y-4">
+            {recentAnalyses.map((job) => {
+              const status = statusConfig(job.status);
+              const isVideo = job.content_type?.startsWith('video');
+
+              return (
+                <Card
+                  key={job.job_id}
+                  variant="outline"
+                  padding="md"
+                  interactive
+                  className="bg-white/85 dark:bg-slate-900/70"
+                >
+                  <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-1 gap-4">
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/60 bg-gradient-to-br from-blue-100 via-white to-purple-100 shadow-inner shadow-blue-100 dark:border-white/10 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800">
                         {job.thumbnail_url ? (
-                          <img 
-                            src={job.thumbnail_url} 
+                          <img
+                            src={job.thumbnail_url}
                             alt={job.filename}
-                            className="w-full h-full object-cover rounded-lg"
-                            onError={(e) => {
-                              console.log(`❌ Failed to load thumbnail: ${job.thumbnail_url}`);
-                              const target = e.currentTarget as HTMLImageElement;
-                              const fallback = target.nextElementSibling as HTMLElement;
+                            className="h-full w-full object-cover"
+                            onError={(event) => {
+                              const target = event.currentTarget as HTMLImageElement;
                               target.style.display = 'none';
-                              if (fallback) fallback.style.display = 'flex';
                             }}
                           />
-                        ) : null}
-                        <div className={`text-center ${job.thumbnail_url ? 'hidden' : 'flex'}`} style={{ display: job.thumbnail_url ? 'none' : 'flex' }}>
-                          {job.content_type?.startsWith('video') ? (
-                            <div className="w-8 h-8 bg-blue-500 rounded text-white flex items-center justify-center text-sm font-bold">
-                              🎬
-                            </div>
-                          ) : (
-                            <div className="w-8 h-8 bg-green-500 rounded text-white flex items-center justify-center text-sm font-bold">
-                              🖼️
-                            </div>
-                          )}
-                        </div>
+                        ) : (
+                          <span className="text-2xl">{isVideo ? '🎬' : '🖼️'}</span>
+                        )}
                       </div>
 
-                      {/* Job Details */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold text-gray-900 truncate mr-4">{job.filename}</h3>
-                          <div className="flex items-center space-x-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              job.status === 'completed' ? 'bg-green-100 text-green-800' :
-                              job.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
-                              job.status === 'failed' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1) : 'Unknown'}
-                            </span>
+                      <div className="flex-1 space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{job.filename}</h3>
+                            <p className="text-sm text-gray-500 dark:text-slate-400">Created {formatDate(job.created_at)}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Chip tone={status.tone} size="sm">
+                              {status.label}
+                            </Chip>
+                            <Chip tone={isVideo ? 'purple' : 'blue'} size="sm">
+                              {isVideo ? 'Video asset' : 'Image asset'}
+                            </Chip>
+                            {job.summary?.resolution && (
+                              <Chip tone="gray" size="sm">{job.summary.resolution}</Chip>
+                            )}
                           </div>
                         </div>
 
-                        <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
-                          <span>{new Date(job.created_at).toLocaleDateString()}</span>
-                          {job.processing_time_seconds && (
-                            <span>{job.processing_time_seconds}s processing</span>
-                          )}
-                          {job.summary?.resolution && (
-                            <span>{job.summary.resolution}</span>
-                          )}
-                        </div>
-
-                        {/* Prompt Preview */}
                         {job.prompt_preview && (
-                          <div className="mb-4">
-                            <p className="text-sm text-gray-700 line-clamp-2 bg-gray-50 p-3 rounded-lg border">
-                              {job.prompt_preview}
-                            </p>
-                          </div>
+                          <p className="line-clamp-2 rounded-2xl border border-gray-200/60 bg-white/70 p-4 text-sm text-gray-700 shadow-inner shadow-gray-200/40 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                            {job.prompt_preview}
+                          </p>
                         )}
 
-                        {/* Enhancement Features */}
+                        <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-slate-400">
+                          <span>Processing time: {formatProcessingTime(job.processing_time_seconds)}</span>
+                          {job.summary?.analysis_method && <span>Method: {job.summary.analysis_method}</span>}
+                          {job.summary?.fps && <span>FPS: {job.summary.fps}</span>}
+                        </div>
+
                         {job.enhancement_features && job.enhancement_features.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mb-4">
-                            {job.enhancement_features.slice(0, 3).map((feature, index) => (
-                              <span
-                                key={index}
-                                className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium"
-                              >
+                          <div className="flex flex-wrap gap-2">
+                            {job.enhancement_features.slice(0, 4).map((feature: string) => (
+                              <Chip key={feature} tone="purple" size="sm">
                                 {feature}
-                              </span>
+                              </Chip>
                             ))}
-                            {job.enhancement_features.length > 3 && (
-                              <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
-                                +{job.enhancement_features.length - 3} more
-                              </span>
+                            {job.enhancement_features.length > 4 && (
+                              <Chip tone="gray" size="sm">
+                                +{job.enhancement_features.length - 4} more
+                              </Chip>
                             )}
                           </div>
                         )}
-
-                        {/* Action Buttons */}
-                        <div className="flex items-center space-x-3">
-                          <button
-                            onClick={() => handleViewJob(job)}
-                            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span>View Details</span>
-                          </button>
-
-                          {job.main_prompt && (
-                            <>
-                              <button
-                                onClick={() => handleCopyPrompt(job.main_prompt!, job.job_id)}
-                                className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
-                              >
-                                {copiedPrompt === job.job_id ? (
-                                  <>
-                                    <Check className="w-4 h-4" />
-                                    <span>Copied!</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy className="w-4 h-4" />
-                                    <span>Copy Prompt</span>
-                                  </>
-                                )}
-                              </button>
-
-                              <button
-                                onClick={() => handleDownloadPrompt(job)}
-                                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                              >
-                                <Download className="w-4 h-4" />
-                                <span>Download</span>
-                              </button>
-                            </>
-                          )}
-
-                          {job.status === 'processing' && (
-                            <div className="flex items-center space-x-2 text-yellow-600">
-                              <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
-                              <span className="text-sm">Processing...</span>
-                            </div>
-                          )}
-                        </div>
                       </div>
                     </div>
+
+                    <div className="flex flex-col items-stretch gap-3 lg:w-48">
+                      <Button
+                        size="sm"
+                        onClick={() => handleViewJob(job)}
+                        leadingIcon={<Eye className="h-4 w-4" />}
+                      >
+                        View details
+                      </Button>
+
+                      {job.main_prompt && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyPrompt(job.main_prompt!, job.job_id)}
+                          leadingIcon={
+                            copiedPrompt === job.job_id ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )
+                          }
+                        >
+                          {copiedPrompt === job.job_id ? 'Copied' : 'Copy prompt'}
+                        </Button>
+                      )}
+
+                      {job.main_prompt && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadPrompt(job)}
+                          leadingIcon={<Download className="h-4 w-4" />}
+                        >
+                          Download TXT
+                        </Button>
+                      )}
+
+                      {job.status === 'processing' && (
+                        <div className="flex items-center justify-center gap-2 rounded-2xl border border-amber-200/60 bg-amber-50/70 px-3 py-2 text-xs font-medium text-amber-700 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-200">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>Processing…</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🎬</span>
-                </div>
-                <p className="text-gray-500 text-lg font-medium">No analysis jobs yet</p>
-                <p className="text-gray-400 text-sm mt-1">Upload your first file to get started!</p>
-              </div>
-            )}
+                </Card>
+              );
+            })}
           </div>
-        </div>
-      </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-gray-300/70 bg-white/70 p-12 text-center text-gray-500 dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-300">
+            <span className="text-4xl">🎬</span>
+            <div>
+              <p className="text-lg font-semibold">No analysis jobs yet</p>
+              <p className="text-sm">Upload your first asset to see the full prompt breakdown here.</p>
+            </div>
+            <Button onClick={() => uploadRef.current?.scrollIntoView({ behavior: 'smooth' })}>Start an analysis</Button>
+          </div>
+        )}
+      </PageSection>
 
-      {/* Tutorial Modal */}
-      {showTutorial && (
-        <TutorialModal
-          isOpen={showTutorial}
-          onClose={handleTutorialComplete}
-          onComplete={handleTutorialComplete}
-        />
-      )}
-
-      {/* Progress Modal */}
       {activeJobId && activeJobInfo && (
         <ProgressModal
           jobId={activeJobId}
           filename={activeJobInfo.filename}
           contentType={activeJobInfo.contentType}
-          isOpen={!!activeJobId}
+          isOpen={Boolean(activeJobId)}
           onClose={() => {
             setActiveJobId(null);
             setActiveJobInfo(null);
@@ -474,7 +505,6 @@ const DashboardPage: React.FC = () => {
         />
       )}
 
-      {/* Job Result Modal */}
       {selectedJob && (
         <JobResultModal
           isOpen={showJobModal}
@@ -485,7 +515,7 @@ const DashboardPage: React.FC = () => {
           job={selectedJob}
         />
       )}
-    </div>
+    </PageContainer>
   );
 };
 

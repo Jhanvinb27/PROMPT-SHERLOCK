@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
+import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { Check, Star, Zap, Shield, Crown, Users, Sparkles, TrendingUp, Clock, Gift, Loader2 } from 'lucide-react';
+import { Check, Star, Zap, Shield, Crown, Users, Sparkles, TrendingUp, Clock, Loader2, ArrowRight } from 'lucide-react';
 import { RazorpayCheckout, CreditPackCheckout, PaymentMethodsInfo } from '../components/payment/RazorpayCheckout';
 import { api } from '../services/api';
 import { startTrial } from '../services/trialService';
@@ -12,8 +13,6 @@ interface PricingPlan {
   name: string;
   priceMonthly: number;
   priceYearly: number;
-  launchPriceMonthly?: number;
-  launchPriceYearly?: number;
   dailyLimit: number;
   description: string;
   features: string[];
@@ -22,7 +21,6 @@ interface PricingPlan {
   icon: React.ReactNode;
   color: string;
   gradient: string;
-  badge?: string;
 }
 
 interface CreditPack {
@@ -38,8 +36,7 @@ const PricingPage: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const [selectedPlan, setSelectedPlan] = useState<string | null>('pro');
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
-  const [showLaunchPricing, setShowLaunchPricing] = useState(true);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<PricingPlan | null>(null);
   const [isStartingTrial, setIsStartingTrial] = useState(false);
@@ -143,8 +140,6 @@ const PricingPage: React.FC = () => {
       name: 'Starter',
       priceMonthly: 299,
       priceYearly: 2990,
-      launchPriceMonthly: 199,
-      launchPriceYearly: 1990,
       dailyLimit: 15,
       description: 'Individual creators & YouTubers',
       features: [
@@ -162,15 +157,12 @@ const PricingPage: React.FC = () => {
       icon: <Zap className="w-6 h-6" />,
       color: 'blue',
       gradient: 'from-blue-500 to-blue-600',
-      badge: '33% OFF'
     },
     {
       id: 'pro',
       name: 'Pro',
       priceMonthly: 699,
       priceYearly: 6990,
-      launchPriceMonthly: 499,
-      launchPriceYearly: 4990,
       dailyLimit: 50,
       description: 'Freelancers, developers & power users',
       features: [
@@ -192,15 +184,12 @@ const PricingPage: React.FC = () => {
       icon: <Shield className="w-6 h-6" />,
       color: 'purple',
       gradient: 'from-purple-500 to-purple-600',
-      badge: '29% OFF'
     },
     {
       id: 'business',
       name: 'Business',
       priceMonthly: 1299,
       priceYearly: 12990,
-      launchPriceMonthly: 999,
-      launchPriceYearly: 9990,
       dailyLimit: 150,
       description: 'Small agencies, content teams & startups',
       features: [
@@ -223,7 +212,6 @@ const PricingPage: React.FC = () => {
       icon: <Crown className="w-6 h-6" />,
       color: 'amber',
       gradient: 'from-amber-500 to-orange-600',
-      badge: '23% OFF'
     }
   ];
 
@@ -231,6 +219,51 @@ const PricingPage: React.FC = () => {
     { name: 'Mini', price: 99, analyses: 20, validity: 15, perAnalysis: 4.95 },
     { name: 'Standard', price: 249, analyses: 60, validity: 30, perAnalysis: 4.15 },
     { name: 'Power', price: 499, analyses: 150, validity: 60, perAnalysis: 3.33 }
+  ];
+
+  const comparisonData = [
+    {
+      feature: 'Daily analyses limit',
+      free: '5/day',
+      pro: '50/day',
+      enterprise: '150/day',
+      credits: '20-150 flex'
+    },
+    {
+      feature: 'Video support',
+      free: 'Images only',
+      pro: 'Up to 5 min video',
+      enterprise: 'Unlimited length',
+      credits: 'All formats'
+    },
+    {
+      feature: 'Processing speed',
+      free: 'Standard (30-60s)',
+      pro: 'Fast (10-20s)',
+      enterprise: 'Ultra-fast (5-15s)',
+      credits: 'Priority queue'
+    },
+    {
+      feature: 'Advanced prompt breakdown',
+      free: null,
+      pro: 'Full breakdown + JSON',
+      enterprise: 'Enterprise insights',
+      credits: 'Add-on markers'
+    },
+    {
+      feature: 'API access',
+      free: null,
+      pro: '5,000 calls/mo',
+      enterprise: '20,000 calls/mo',
+      credits: null
+    },
+    {
+      feature: 'Seats included',
+      free: 'Single seat',
+      pro: 'Solo + collaborators',
+      enterprise: '5 seats (expandable)',
+      credits: 'Single seat'
+    }
   ];
 
   const handlePlanSelect = (planId: string) => {
@@ -262,11 +295,8 @@ const PricingPage: React.FC = () => {
 
   const getPrice = (plan: PricingPlan) => {
     if (plan.priceMonthly === 0) return 0;
-    
-    const basePrice = billingCycle === 'monthly' ? plan.priceMonthly : plan.priceYearly;
-    const launchPrice = billingCycle === 'monthly' ? plan.launchPriceMonthly : plan.launchPriceYearly;
-    
-    return showLaunchPricing && launchPrice ? launchPrice : basePrice;
+
+    return billingCycle === 'monthly' ? plan.priceMonthly : plan.priceYearly;
   };
 
   const getSavings = (plan: PricingPlan) => {
@@ -279,188 +309,203 @@ const PricingPage: React.FC = () => {
     return null;
   };
 
-  const getCardStyles = (plan: PricingPlan) => {
-    const isSelected = selectedPlan === plan.id;
-    const baseStyles = 'relative border rounded-2xl shadow-sm transition-all duration-300 cursor-pointer transform hover:scale-105';
-    
-    if (plan.popular) {
-      return `${baseStyles} ${
-        isSelected
-          ? 'border-purple-500 ring-4 ring-purple-200 shadow-2xl scale-105'
-          : 'border-purple-300 ring-2 ring-purple-100 shadow-lg hover:shadow-xl'
-      }`;
-    }
-    
-    return `${baseStyles} ${
-      isSelected
-        ? `border-${plan.color}-500 ring-4 ring-${plan.color}-200 shadow-xl scale-105`
-        : 'border-gray-200 hover:border-gray-300 hover:shadow-lg'
-    }`;
-  };
-
-  const getButtonStyles = (plan: PricingPlan) => {
-    if (plan.popular) {
-      return 'bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 shadow-lg';
-    }
-    
-    return `bg-gradient-to-r ${plan.gradient} text-white hover:opacity-90`;
-  };
-
   return (
-    <div className="bg-gradient-to-b from-gray-50 via-white to-gray-50 py-12 min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 text-purple-800 text-sm font-semibold mb-4">
-            <Gift className="w-4 h-4 mr-2" />
-            First 500 Users - Lock in Launch Pricing Forever! 
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50 py-12 transition-colors duration-300 dark:from-slate-950 dark:via-slate-950/95 dark:to-slate-950">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Hero */}
+        <div className="relative mb-14 overflow-hidden rounded-[44px] border border-white/60 bg-gradient-to-br from-white via-blue-50 to-purple-50 p-10 shadow-[0_40px_120px_-60px_rgba(79,70,229,0.45)] transition-colors dark:border-white/10 dark:from-slate-900 dark:via-slate-900/80 dark:to-slate-900">
+          <div className="absolute inset-x-14 -top-24 h-48 rounded-full bg-gradient-to-r from-purple-300/40 via-blue-300/40 to-sky-300/40 blur-3xl dark:from-indigo-600/20 dark:via-sky-500/20 dark:to-purple-500/20" />
+          <div className="relative flex flex-col items-center gap-6 text-center">
+            <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-purple-200 bg-white/80 px-5 py-2 text-sm font-semibold text-purple-700 shadow-sm shadow-purple-200 dark:border-indigo-500/60 dark:bg-indigo-500/15 dark:text-indigo-100">
+              <Sparkles className="h-4 w-4" />
+              Made for India-first teams
+            </div>
+            <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl md:text-6xl dark:text-white">
+              Transparent pricing for India-first creators
+            </h1>
+            <p className="mx-auto max-w-3xl text-lg text-gray-600 dark:text-white/80">
+              Upload unlimited images and videos, extract production-grade prompts, and ship content 4× faster.
+              <span className="ml-1 font-semibold text-purple-600 dark:text-indigo-200">Save up to 60% vs US tools.</span>
+            </p>
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex items-center gap-4 rounded-full border border-purple-200 bg-white/80 px-4 py-2 shadow-sm shadow-purple-200 dark:border-indigo-500/40 dark:bg-slate-900/70">
+                <span
+                  className={clsx(
+                    'text-sm font-semibold uppercase tracking-wide',
+                    billingCycle === 'monthly' ? 'text-purple-600 dark:text-indigo-300' : 'text-gray-500 dark:text-white/75'
+                  )}
+                >
+                  Monthly
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'yearly' : 'monthly')}
+                  aria-label={`Switch to ${billingCycle === 'monthly' ? 'yearly' : 'monthly'} billing`}
+                  className="relative h-9 w-16 rounded-full border border-purple-200 bg-white/80 transition-all focus:outline-none focus:ring-4 focus:ring-purple-200 dark:border-indigo-500/40 dark:bg-slate-900/70 dark:focus:ring-indigo-500/40"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={clsx(
+                      'absolute left-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-[11px] font-semibold uppercase text-white shadow-lg transition-transform',
+                      billingCycle === 'yearly' ? 'translate-x-7' : 'translate-x-0'
+                    )}
+                  >
+                    {billingCycle === 'yearly' ? 'yr' : 'mo'}
+                  </span>
+                </button>
+                <span
+                  className={clsx(
+                    'text-sm font-semibold uppercase tracking-wide',
+                    billingCycle === 'yearly' ? 'text-purple-600 dark:text-indigo-300' : 'text-gray-500 dark:text-white/75'
+                  )}
+                >
+                  Yearly
+                </span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-purple-700 shadow-sm shadow-purple-200 dark:bg-indigo-500/15 dark:text-indigo-100">
+                <TrendingUp className="h-3.5 w-3.5" />
+                Save 17% instantly when billed yearly
+              </div>
+            </div>
           </div>
-          <h2 className="text-4xl font-extrabold text-gray-900 sm:text-5xl mb-4">
-            Pricing That Makes Sense for India
-          </h2>
-          <p className="mt-4 text-xl text-gray-600 max-w-3xl mx-auto">
-            Daily limits that feel unlimited. Video + Image support. API access at ₹699. 
-            <span className="text-purple-600 font-semibold"> Save 40-60% vs US tools.</span>
-          </p>
-          
-          {/* Billing Toggle */}
-          <div className="mt-8 flex items-center justify-center space-x-4">
-            <span className={`text-sm font-medium ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
-              Monthly
-            </span>
-            <button
-              onClick={() => setBillingCycle(prev => prev === 'monthly' ? 'yearly' : 'monthly')}
-              className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
-                billingCycle === 'yearly' ? 'bg-gradient-to-r from-purple-600 to-purple-700' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                  billingCycle === 'yearly' ? 'translate-x-9' : 'translate-x-1'
-                }`}
-              />
-            </button>
-            <span className={`text-sm font-medium ${billingCycle === 'yearly' ? 'text-gray-900' : 'text-gray-500'}`}>
-              Yearly
-            </span>
-            <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
-              <TrendingUp className="w-3 h-3 mr-1" />
-              Save 17%
-            </span>
+        </div>
+
+        <div className="mt-24">
+          <div className="mb-12 text-center">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Compare Plans &amp; Credit Packs</h2>
+            <p className="mt-4 mx-auto max-w-2xl text-lg text-gray-600 dark:text-white/80">
+              Choose the perfect plan for your workflow. Credits are flexible and can be used for any analysis.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-white/60 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900/80">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gradient-to-r from-blue-600 to-purple-600 text-left text-white dark:from-indigo-700 dark:to-purple-600/80">
+                  <th className="p-6 text-sm font-semibold">Feature</th>
+                  <th className="p-6 text-sm font-semibold">Free</th>
+                  <th className="p-6 text-sm font-semibold">Pro</th>
+                  <th className="p-6 text-sm font-semibold">Enterprise</th>
+                  <th className="p-6 text-sm font-semibold">Credits</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
+                {comparisonData.map((item) => (
+                  <tr key={item.feature} className="transition-colors hover:bg-purple-50 dark:hover:bg-slate-800/70">
+                    <td className="p-6 text-sm font-semibold text-gray-900 dark:text-white">{item.feature}</td>
+                    <td className="p-6 text-sm text-gray-600 dark:text-white/80">
+                      {item.free || <span className="font-semibold text-red-500">✕</span>}
+                    </td>
+                    <td className="p-6 text-sm text-gray-600 dark:text-white/80">
+                      {item.pro || <span className="font-semibold text-red-500">✕</span>}
+                    </td>
+                    <td className="p-6 text-sm text-gray-600 dark:text-white/80">
+                      {item.enterprise || <span className="font-semibold text-red-500">✕</span>}
+                    </td>
+                    <td className="p-6 text-sm font-semibold text-purple-600 dark:text-indigo-300">
+                      {item.credits || <span className="font-semibold text-red-500">✕</span>}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="bg-purple-100 dark:bg-slate-800/80">
+                  <td className="p-6 text-sm font-semibold text-purple-700 dark:text-indigo-200">Pricing</td>
+                  <td className="p-6 text-sm text-gray-600 dark:text-white/80">₹0</td>
+                  <td className="p-6 text-sm font-semibold text-purple-600 dark:text-indigo-300">
+                    {billingCycle === 'monthly' ? '₹699/mo' : '₹6,990/yr'}
+                  </td>
+                  <td className="p-6 text-sm text-gray-600 dark:text-white/80">Talk to us</td>
+                  <td className="p-6 text-sm font-semibold text-purple-600 dark:text-indigo-300">From ₹199</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
         {/* Pricing Cards */}
-        <div className="mt-12 grid gap-6 lg:grid-cols-4 md:grid-cols-2 sm:grid-cols-1">
+        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {plans.map((plan) => {
             const price = getPrice(plan);
             const savings = getSavings(plan);
-            const isLaunchPrice = showLaunchPricing && plan.launchPriceMonthly && plan.id !== 'free';
-            
+            const isSelected = selectedPlan === plan.id;
+
             return (
               <div
                 key={plan.id}
                 onClick={() => handlePlanSelect(plan.id)}
-                className={getCardStyles(plan)}
+                className={clsx(
+                  'group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-white/70 bg-white/85 p-8 text-left shadow-[0_28px_90px_-45px_rgba(79,70,229,0.35)] transition-all duration-500 hover:-translate-y-2 hover:border-purple-200/70 hover:bg-white/95 dark:border-white/10 dark:bg-slate-900/80 dark:shadow-[0_28px_90px_-45px_rgba(15,23,42,0.7)]',
+                  isSelected ? 'ring-4 ring-purple-200 shadow-[0_40px_120px_-60px_rgba(79,70,229,0.55)] dark:ring-indigo-500/40' : 'ring-0'
+                )}
               >
-                {/* Popular Badge */}
-                {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-10">
-                    <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-1.5 rounded-full shadow-lg flex items-center">
-                      <Star className="w-4 h-4 mr-1 fill-current" />
-                      <span className="text-xs font-bold uppercase">Most Popular</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Launch Offer Badge */}
-                {isLaunchPrice && (
-                  <div className="absolute -top-3 -right-3 z-10">
-                    <div className="bg-gradient-to-br from-red-500 to-pink-600 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-lg transform rotate-12">
-                      <div className="text-center -rotate-12">
-                        <div className="text-xs font-bold">{plan.badge}</div>
+                <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-500 group-hover:opacity-100 ${plan.gradient}`}></div>
+                <div className="relative flex flex-1 flex-col gap-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-4">
+                      <span className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${plan.gradient} text-white shadow-lg shadow-purple-200/60 dark:shadow-indigo-900/50`}>
+                        {plan.icon}
+                      </span>
+                      <div>
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{plan.name}</h3>
+                        <p className="text-sm text-gray-500 dark:text-white/80">{plan.description}</p>
                       </div>
                     </div>
-                  </div>
-                )}
-                
-                {/* Card Content */}
-                <div className="p-6">
-                  {/* Icon and Name */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`p-3 rounded-xl bg-gradient-to-br ${plan.gradient} text-white`}>
-                      {plan.icon}
+                    <div className="flex flex-col items-end gap-2">
+                      {plan.popular && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 px-3 py-1 text-[11px] font-semibold uppercase text-white shadow-lg">
+                          <Star className="h-3 w-3" />
+                          Most loved
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                    {plan.name}
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-4 h-10">{plan.description}</p>
-                  
-                  {/* Pricing */}
-                  <div className="mb-4">
-                    <div className="flex items-baseline">
-                      <span className="text-4xl font-extrabold text-gray-900">
-                        ₹{price}
-                      </span>
-                      <span className="text-base font-medium text-gray-500 ml-1">
-                        /{billingCycle === 'monthly' ? 'mo' : 'yr'}
-                      </span>
+                  <div className="space-y-3">
+                    <div className="flex items-baseline gap-2 text-gray-900 dark:text-white">
+                      <span className="text-4xl font-extrabold">₹{price}</span>
+                      <span className="text-sm font-semibold text-gray-500 dark:text-white/80">/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
                     </div>
-                    
-                    {/* Original Price Strikethrough for Launch Offers */}
-                    {isLaunchPrice && (
-                      <div className="mt-1">
-                        <span className="text-lg text-gray-400 line-through">
-                          ₹{billingCycle === 'monthly' ? plan.priceMonthly : plan.priceYearly}
-                        </span>
-                        <span className="ml-2 text-sm text-green-600 font-semibold">
-                          Lock in forever!
-                        </span>
+
+                    {savings && (
+                      <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-300">
+                        <Sparkles className="h-4 w-4" />
+                        Save ₹{savings.amount} ({savings.percentage}% yearly)
                       </div>
                     )}
 
-                    {/* Yearly Savings */}
-                    {savings && !isLaunchPrice && (
-                      <p className="text-sm text-green-600 font-medium mt-1 flex items-center">
-                        <Sparkles className="w-3 h-3 mr-1" />
-                        Save ₹{savings.amount} ({savings.percentage}% off)
-                      </p>
-                    )}
-
-                    {/* Daily Limit Highlight */}
-                    <div className="mt-3 inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
-                      <Clock className="w-3 h-3 mr-1" />
-                      {plan.dailyLimit} analyses/day
+                    <div className="flex flex-wrap gap-2 text-xs font-semibold text-blue-600 dark:text-indigo-300">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 dark:bg-indigo-500/20">
+                        <Clock className="h-3.5 w-3.5" />
+                        {plan.dailyLimit} analyses/day
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 dark:bg-indigo-500/20">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Full AI breakdown
+                      </span>
                     </div>
                   </div>
 
-                  {/* CTA Button */}
+                  <div className="flex-1">
+                    <h4 className="text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-white/75">What's included</h4>
+                    <div className="mt-4 grid gap-2 text-sm text-gray-700 dark:text-white/85" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                      {plan.features.map((feature, index) => (
+                        <div key={index} className="flex items-start gap-2">
+                          <Check className="mt-1 h-4 w-4 flex-shrink-0 text-emerald-500" />
+                          <span className="text-xs leading-snug">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    onClick={(event) => {
+                      event.stopPropagation();
                       handleCTAClick(plan);
                     }}
-                    className={`w-full py-3 px-6 rounded-xl text-center font-semibold transition-all duration-200 ${getButtonStyles(plan)}`}
+                    className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-300/40 transition hover:shadow-purple-400/50 dark:shadow-indigo-900/50"
                   >
                     {plan.cta}
+                    <ArrowRight className="h-4 w-4" />
                   </button>
-                </div>
-                
-                {/* Features */}
-                <div className="px-6 pb-8 border-t border-gray-100 pt-6">
-                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4">
-                    What's included
-                  </h4>
-                  <ul className="space-y-2.5">
-                    {plan.features.map((feature, index) => (
-                      <li key={index} className="flex items-start">
-                        <Check className="flex-shrink-0 h-4 w-4 text-green-500 mr-2 mt-0.5" />
-                        <span className="text-xs text-gray-700">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
               </div>
             );
@@ -468,41 +513,44 @@ const PricingPage: React.FC = () => {
         </div>
 
         {/* Credit Packs Section */}
-        <div className="mt-20 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-8">
-          <div className="text-center mb-8">
-            <h3 className="text-3xl font-bold text-gray-900 mb-3">
+        <div className="mt-20 rounded-2xl border border-white/60 bg-gradient-to-br from-blue-50 to-purple-50 p-8 shadow-[0_36px_110px_-60px_rgba(59,130,246,0.35)] transition-colors dark:border-slate-800 dark:from-slate-900/90 dark:to-slate-900/70 dark:shadow-[0_36px_110px_-60px_rgba(15,23,42,0.85)]">
+          <div className="mb-8 text-center">
+            <h3 className="mb-3 text-3xl font-bold text-gray-900 dark:text-white">
               Sachet Pricing - Pay As You Go
             </h3>
-            <p className="text-lg text-gray-600">
+            <p className="text-lg text-gray-600 dark:text-white/80">
               No subscription? No problem. Buy credits that work for you.
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3 max-w-5xl mx-auto">
+          <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
             {creditPacks.map((pack) => (
-              <div key={pack.name} className="bg-white rounded-xl p-6 shadow-md hover:shadow-xl transition-shadow border-2 border-transparent hover:border-blue-300">
+              <div
+                key={pack.name}
+                className="rounded-xl border-2 border-transparent bg-white p-6 text-gray-800 shadow-md transition-shadow hover:border-blue-300 hover:shadow-xl dark:bg-slate-900/85 dark:text-white dark:hover:border-indigo-500/40"
+              >
                 <div className="text-center">
-                  <h4 className="text-xl font-bold text-gray-900 mb-2">{pack.name}</h4>
+                  <h4 className="mb-2 text-xl font-bold text-gray-900 dark:text-white">{pack.name}</h4>
                   <div className="mb-4">
-                    <span className="text-3xl font-extrabold text-gray-900">₹{pack.price}</span>
+                    <span className="text-3xl font-extrabold text-gray-900 dark:text-white">₹{pack.price}</span>
                   </div>
-                  <div className="space-y-2 text-sm text-gray-600 mb-4">
+                  <div className="mb-4 space-y-2 text-sm text-gray-600 dark:text-white/80">
                     <p className="flex items-center justify-center">
-                      <Check className="w-4 h-4 text-green-500 mr-2" />
+                      <Check className="mr-2 h-4 w-4 text-emerald-500" />
                       {pack.analyses} analyses
                     </p>
                     <p className="flex items-center justify-center">
-                      <Check className="w-4 h-4 text-green-500 mr-2" />
+                      <Check className="mr-2 h-4 w-4 text-emerald-500" />
                       Valid for {pack.validity} days
                     </p>
-                    <p className="text-xs text-purple-600 font-semibold mt-3">
+                    <p className="mt-3 text-xs font-semibold text-purple-600 dark:text-indigo-300">
                       ₹{pack.perAnalysis.toFixed(2)} per analysis
                     </p>
                   </div>
                   {!user ? (
                     <button
                       onClick={() => navigate('/signup', { state: { creditPack: pack.name } })}
-                      className="w-full py-2 px-4 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:from-blue-700 hover:to-purple-700 transition-colors"
+                      className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-2 font-semibold text-white transition-colors hover:from-blue-700 hover:to-purple-700"
                     >
                       Sign Up to Buy
                     </button>
@@ -519,27 +567,26 @@ const PricingPage: React.FC = () => {
             ))}
           </div>
 
-          <p className="text-center text-sm text-gray-600 mt-6">
+                  <p className="mt-6 text-center text-sm text-gray-600 dark:text-white/75">
             💡 Credits don't expire by day - total count is valid for the entire period!
           </p>
         </div>
 
         {/* Student Discount Banner */}
-        <div className="mt-12 bg-gradient-to-r from-green-500 to-teal-600 rounded-xl p-6 text-white">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex-1">
-              <h3 className="text-2xl font-bold mb-2 flex items-center">
-                <Users className="w-6 h-6 mr-2" />
+        <div className="mt-12 rounded-2xl border border-emerald-200/60 bg-gradient-to-r from-emerald-500 to-teal-600 p-6 text-white shadow-[0_26px_90px_-40px_rgba(16,185,129,0.55)] dark:border-emerald-500/30 dark:from-emerald-500/80 dark:to-teal-600/80">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex-1 min-w-[220px]">
+              <h3 className="mb-2 flex items-center text-2xl font-bold">
+                <Users className="mr-2 h-6 w-6" />
                 Student/Educational Discount
               </h3>
-              <p className="text-green-50">
-                Get 40% off with your .edu email address! 
-                Starter: ₹179/mo • Pro: ₹419/mo • Business: ₹779/mo
+              <p className="text-emerald-50">
+                Get 40% off with your .edu email address! Starter: ₹179/mo • Pro: ₹419/mo • Business: ₹779/mo
               </p>
             </div>
             <button
               onClick={() => navigate('/signup', { state: { studentDiscount: true } })}
-              className="px-6 py-3 bg-white text-green-600 rounded-lg font-semibold hover:bg-green-50 transition-colors"
+              className="rounded-xl bg-white px-6 py-3 font-semibold text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-700"
             >
               Claim Discount
             </button>
@@ -548,65 +595,65 @@ const PricingPage: React.FC = () => {
 
         {/* Comparison with US Tools */}
         <div className="mt-20">
-          <h3 className="text-3xl font-bold text-gray-900 text-center mb-8">
+          <h3 className="mb-8 text-center text-3xl font-bold text-gray-900 dark:text-white">
             Why Prompt Detective? Compare & Save
           </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="overflow-x-auto rounded-2xl border border-white/60 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900/80">
+            <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-gradient-to-r from-purple-100 to-blue-100">
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Feature</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-purple-700">
+                <tr className="bg-gradient-to-r from-purple-100 to-blue-100 text-gray-900 dark:from-indigo-900/70 dark:to-slate-900/60 dark:text-white/85">
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Feature</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-purple-700 dark:text-indigo-200">
                     Prompt Detective
-                    <div className="text-xs font-normal text-purple-600 mt-1">🇮🇳 India Optimized</div>
+                    <div className="mt-1 text-xs font-normal text-purple-600 dark:text-indigo-200/90">🇮🇳 India Optimized</div>
                   </th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ImagePrompt.org</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">Flux1.ai</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">VideoToPrompt</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 dark:text-white/85">ImagePrompt.org</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 dark:text-white/85">Flux1.ai</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 dark:text-white/85">VideoToPrompt</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
-                <tr className="hover:bg-purple-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">India Pricing</td>
-                  <td className="px-6 py-4 text-center text-sm text-green-600 font-semibold">✅ ₹299 - ₹1,299</td>
-                  <td className="px-6 py-4 text-center text-sm text-red-600">❌ $14.99+ (₹1,329+)</td>
-                  <td className="px-6 py-4 text-center text-sm text-red-600">❌ USD only</td>
-                  <td className="px-6 py-4 text-center text-sm text-red-600">❌ USD only</td>
+              <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
+                <tr className="transition-colors hover:bg-purple-50 dark:hover:bg-slate-800/70">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">India Pricing</td>
+                  <td className="px-6 py-4 text-center text-sm font-semibold text-emerald-600 dark:text-emerald-300">✅ ₹299 - ₹1,299</td>
+                  <td className="px-6 py-4 text-center text-sm text-red-600 dark:text-red-300">❌ $14.99+ (₹1,329+)</td>
+                  <td className="px-6 py-4 text-center text-sm text-red-600 dark:text-red-300">❌ USD only</td>
+                  <td className="px-6 py-4 text-center text-sm text-red-600 dark:text-red-300">❌ USD only</td>
                 </tr>
-                <tr className="hover:bg-purple-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">Daily Limits</td>
-                  <td className="px-6 py-4 text-center text-sm text-green-600 font-semibold">✅ 5-150/day</td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-600">❌ Monthly caps</td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-600">✅ Unlimited</td>
-                  <td className="px-6 py-4 text-center text-sm text-yellow-600">⚠️ Limited</td>
+                <tr className="transition-colors hover:bg-purple-50 dark:hover:bg-slate-800/70">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">Daily Limits</td>
+                  <td className="px-6 py-4 text-center text-sm font-semibold text-emerald-600 dark:text-emerald-300">✅ 5-150/day</td>
+                  <td className="px-6 py-4 text-center text-sm text-gray-600 dark:text-white/80">❌ Monthly caps</td>
+                  <td className="px-6 py-4 text-center text-sm text-gray-600 dark:text-white/80">✅ Unlimited</td>
+                  <td className="px-6 py-4 text-center text-sm text-yellow-600 dark:text-amber-300">⚠️ Limited</td>
                 </tr>
-                <tr className="hover:bg-purple-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">Video Support</td>
-                  <td className="px-6 py-4 text-center text-sm text-green-600 font-semibold">✅ All tiers</td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-600">❌ Pro only</td>
-                  <td className="px-6 py-4 text-center text-sm text-red-600">❌ None</td>
-                  <td className="px-6 py-4 text-center text-sm text-yellow-600">✅ Limited</td>
+                <tr className="transition-colors hover:bg-purple-50 dark:hover:bg-slate-800/70">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">Video Support</td>
+                  <td className="px-6 py-4 text-center text-sm font-semibold text-emerald-600 dark:text-emerald-300">✅ All tiers</td>
+                  <td className="px-6 py-4 text-center text-sm text-gray-600 dark:text-white/80">❌ Pro only</td>
+                  <td className="px-6 py-4 text-center text-sm text-red-600 dark:text-red-300">❌ None</td>
+                  <td className="px-6 py-4 text-center text-sm text-yellow-600 dark:text-amber-300">✅ Limited</td>
                 </tr>
-                <tr className="hover:bg-purple-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">API Access</td>
-                  <td className="px-6 py-4 text-center text-sm text-green-600 font-semibold">✅ At ₹699</td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-600">❌ Higher tiers</td>
-                  <td className="px-6 py-4 text-center text-sm text-red-600">❌ None</td>
-                  <td className="px-6 py-4 text-center text-sm text-red-600">❌ None</td>
+                <tr className="transition-colors hover:bg-purple-50 dark:hover:bg-slate-800/70">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">API Access</td>
+                  <td className="px-6 py-4 text-center text-sm font-semibold text-emerald-600 dark:text-emerald-300">✅ At ₹699</td>
+                  <td className="px-6 py-4 text-center text-sm text-gray-600 dark:text-white/80">❌ Higher tiers</td>
+                  <td className="px-6 py-4 text-center text-sm text-red-600 dark:text-red-300">❌ None</td>
+                  <td className="px-6 py-4 text-center text-sm text-red-600 dark:text-red-300">❌ None</td>
                 </tr>
-                <tr className="hover:bg-purple-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">Sachet Pricing</td>
-                  <td className="px-6 py-4 text-center text-sm text-green-600 font-semibold">✅ ₹99-₹499</td>
-                  <td className="px-6 py-4 text-center text-sm text-red-600">❌ No</td>
-                  <td className="px-6 py-4 text-center text-sm text-red-600">❌ No</td>
-                  <td className="px-6 py-4 text-center text-sm text-red-600">❌ No</td>
+                <tr className="transition-colors hover:bg-purple-50 dark:hover:bg-slate-800/70">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">Sachet Pricing</td>
+                  <td className="px-6 py-4 text-center text-sm font-semibold text-emerald-600 dark:text-emerald-300">✅ ₹99-₹499</td>
+                  <td className="px-6 py-4 text-center text-sm text-red-600 dark:text-red-300">❌ No</td>
+                  <td className="px-6 py-4 text-center text-sm text-red-600 dark:text-red-300">❌ No</td>
+                  <td className="px-6 py-4 text-center text-sm text-red-600 dark:text-red-300">❌ No</td>
                 </tr>
-                <tr className="hover:bg-purple-50 transition-colors bg-purple-100">
-                  <td className="px-6 py-4 text-sm font-bold text-gray-900">Your Savings</td>
-                  <td className="px-6 py-4 text-center text-lg text-green-700 font-bold">Save 40-60%</td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-400">-</td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-400">-</td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-400">-</td>
+                <tr className="bg-purple-100 transition-colors hover:bg-purple-200/70 dark:bg-slate-800/80 dark:hover:bg-slate-800/70">
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">Your Savings</td>
+                  <td className="px-6 py-4 text-center text-lg font-bold text-green-700 dark:text-emerald-300">Save 40-60%</td>
+                  <td className="px-6 py-4 text-center text-sm text-gray-400 dark:text-white/65">-</td>
+                  <td className="px-6 py-4 text-center text-sm text-gray-400 dark:text-white/65">-</td>
+                  <td className="px-6 py-4 text-center text-sm text-gray-400 dark:text-white/65">-</td>
                 </tr>
               </tbody>
             </table>
@@ -615,9 +662,9 @@ const PricingPage: React.FC = () => {
 
         {/* Social Proof */}
         <div className="mt-16 text-center">
-          <div className="inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-purple-100 to-blue-100">
-            <Users className="w-5 h-5 text-purple-600 mr-2" />
-            <span className="text-purple-900 font-semibold">
+          <div className="inline-flex items-center rounded-full bg-gradient-to-r from-purple-100 to-blue-100 px-6 py-3 shadow-sm dark:from-indigo-900/60 dark:to-blue-900/60">
+            <Users className="mr-2 h-5 w-5 text-purple-600 dark:text-indigo-300" />
+            <span className="font-semibold text-purple-900 dark:text-indigo-100">
               Join 2,000+ Indian creators already using Prompt Detective
             </span>
           </div>
@@ -625,10 +672,10 @@ const PricingPage: React.FC = () => {
 
         {/* FAQ Section */}
         <div className="mt-20">
-          <h3 className="text-3xl font-bold text-gray-900 text-center mb-12">
+          <h3 className="mb-12 text-center text-3xl font-bold text-gray-900 dark:text-white">
             Frequently Asked Questions
           </h3>
-          <div className="max-w-3xl mx-auto">
+          <div className="mx-auto max-w-3xl">
             <div className="space-y-6">
               {[
                 {
@@ -644,16 +691,16 @@ const PricingPage: React.FC = () => {
                   answer: 'You can upgrade your plan anytime, or purchase a credit pack for immediate access. Credit packs are perfect for occasional bursts of work!'
                 },
                 {
-                  question: 'Is the launch pricing really locked in forever?',
-                  answer: 'Yes! First 500 users who subscribe during our launch period will lock in their pricing forever. Even if we increase prices later, you keep your discounted rate as long as you stay subscribed.'
+                  question: 'Can I switch plans later?',
+                  answer: 'Absolutely! You can upgrade or downgrade any time from your billing settings. Changes take effect immediately and we automatically apply pro-rated charges or credits.'
                 },
                 {
                   question: 'Do you offer refunds?',
                   answer: 'Absolutely! We offer a 14-day money-back guarantee on all paid plans. If you\'re not satisfied, we\'ll refund you - no questions asked.'
                 },
                 {
-                  question: 'How does the referral program work?',
-                  answer: 'Refer a friend who becomes a paying user, and you both get ₹150 credit! Credits can be used toward your subscription or add-ons. There\'s no limit on referrals - the more you refer, the more you save.'
+                  question: 'Do you provide GST invoices?',
+                  answer: 'Yes. Every purchase comes with a GST-compliant invoice delivered instantly to your email. You can also download past invoices from the dashboard.'
                 },
                 {
                   question: 'What payment methods do you accept?',
@@ -666,12 +713,12 @@ const PricingPage: React.FC = () => {
               ].map((faq, index) => (
                 <div 
                   key={index}
-                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                  className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900/75"
                 >
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">
+                  <h4 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
                     {faq.question}
                   </h4>
-                  <p className="text-gray-600 leading-relaxed">
+                  <p className="leading-relaxed text-gray-600 dark:text-white/80">
                     {faq.answer}
                   </p>
                 </div>
@@ -715,23 +762,23 @@ const PricingPage: React.FC = () => {
               </button>
             </div>
             <p className="mt-6 text-sm text-purple-200">
-              🎉 Launch offer ends soon - Lock in your pricing today!
+              🎉 Start today and cancel anytime—no hidden fees, ever.
             </p>
           </div>
         </div>
 
         {/* Trust Badges */}
-        <div className="mt-16 flex items-center justify-center space-x-8 text-gray-400">
-          <div className="flex items-center">
-            <Shield className="w-5 h-5 mr-2" />
+  <div className="mt-16 flex items-center justify-center space-x-8 text-gray-400 dark:text-white/70">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
             <span className="text-sm">Secure Payments</span>
           </div>
-          <div className="flex items-center">
-            <Check className="w-5 h-5 mr-2" />
+          <div className="flex items-center gap-2">
+            <Check className="h-5 w-5" />
             <span className="text-sm">14-Day Guarantee</span>
           </div>
-          <div className="flex items-center">
-            <Users className="w-5 h-5 mr-2" />
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
             <span className="text-sm">2000+ Users</span>
           </div>
         </div>
@@ -739,132 +786,127 @@ const PricingPage: React.FC = () => {
 
       {/* Plan Action Modal */}
       {showPlanModal && selectedPlanForPayment && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="relative w-full max-w-xl sm:max-w-2xl bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 px-3 py-6 backdrop-blur">
+          <div className="relative flex w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/10 shadow-[0_50px_140px_-60px_rgba(79,70,229,0.6)] backdrop-blur-xl dark:bg-slate-900/90">
             <button
               onClick={() => setShowPlanModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute right-4 top-4 z-10 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
               aria-label="Close"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
 
-            <div className="text-center mb-6">
-              <div className={`inline-flex p-4 rounded-full bg-gradient-to-br ${selectedPlanForPayment.gradient} text-white mb-4`}>
-                {selectedPlanForPayment.icon}
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                {selectedPlanForPayment.name} Plan
-              </h3>
-              <p className="text-gray-600">
-                {selectedPlanForPayment.description}
-              </p>
-            </div>
+            <div className="max-h-[85vh] overflow-y-auto p-6 sm:p-8">
+              <div className="grid gap-6 lg:grid-cols-[1.15fr,0.85fr]">
+                <div className="space-y-6 rounded-3xl border border-white/15 bg-white/15 p-6 text-white shadow-inner shadow-indigo-500/20">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <span className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${selectedPlanForPayment.gradient} text-white shadow-lg shadow-purple-500/30`}>
+                        {selectedPlanForPayment.icon}
+                      </span>
+                      <div>
+                        <p className="text-sm uppercase tracking-[0.35em] text-white/70">Plan preview</p>
+                        <h3 className="mt-2 text-3xl font-semibold text-white">{selectedPlanForPayment.name}</h3>
+                        <p className="text-sm text-white/70">{selectedPlanForPayment.description}</p>
+                      </div>
+                    </div>
+                  </div>
 
-            <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-5 sm:p-6 mb-6">
-              <div className="flex items-baseline justify-center mb-2">
-                <span className="text-4xl font-extrabold text-gray-900">
-                  ₹{getPrice(selectedPlanForPayment)}
-                </span>
-                <span className="text-base font-medium text-gray-500 ml-1">
-                  /{billingCycle === 'monthly' ? 'mo' : 'yr'}
-                </span>
-              </div>
+                  <div className="rounded-3xl border border-white/20 bg-white/10 p-6">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl font-extrabold">₹{getPrice(selectedPlanForPayment)}</span>
+                      <span className="text-sm font-semibold text-white/70">/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                    </div>
+                    <p className="mt-3 text-sm text-white/70">Switch to yearly to unlock our best pricing.</p>
 
-              {showLaunchPricing && selectedPlanForPayment.launchPriceMonthly && (
-                <div className="text-center">
-                  <span className="text-lg text-gray-400 line-through">
-                    ₹{billingCycle === 'monthly' ? selectedPlanForPayment.priceMonthly : selectedPlanForPayment.priceYearly}
-                  </span>
-                  <span className="ml-2 inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-red-500 to-pink-600 text-white text-xs font-bold">
-                    {selectedPlanForPayment.badge} - LAUNCH OFFER
-                  </span>
+                    <div className="mt-5 grid gap-3 text-sm text-white/80 sm:grid-cols-2">
+                      <div className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-emerald-300" />
+                        {selectedPlanForPayment.dailyLimit} analyses/day, resets every midnight IST
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-sky-300" />
+                        Priority processing & concierge support
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-purple-300" />
+                        Advanced prompt breakdown + enhancement markers
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-amber-300" />
+                        API + batch workflows included
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-3xl border border-white/15 bg-white/5 p-6 text-xs leading-relaxed text-white/70">
+                    <p>• UPI, credit/debit cards, and GST invoices supported via Razorpay.</p>
+                    <p>• You can upgrade, downgrade, or cancel anytime. No long-term lock-ins.</p>
+                    <p>• Questions? Write to <span className="font-semibold text-white">tryreverseai@gmail.com</span>.</p>
+                  </div>
                 </div>
-              )}
 
-              <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-                <p className="text-sm text-gray-600 text-center flex items-center justify-center">
-                  <Check className="w-4 h-4 text-green-600 mr-2" />
-                  {selectedPlanForPayment.dailyLimit} analyses per day (resets nightly)
-                </p>
-                <p className="text-sm text-gray-600 text-center flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-blue-500 mr-2" />
-                  Priority processing & premium support included
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="border border-purple-200 rounded-xl p-5 bg-white/90 shadow-sm flex flex-col">
-                <div className="mb-3">
-                  <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-purple-500" />
-                    Start Free Trial
+                <div className="flex flex-col gap-4">
+                  <div className="rounded-3xl border border-emerald-200/60 bg-white/80 p-6 text-slate-800 shadow-[0_24px_70px_-40px_rgba(16,185,129,0.55)] dark:border-emerald-500/30 dark:bg-slate-900/80 dark:text-white/85">
+                  <h4 className="flex items-center gap-2 text-lg font-semibold">
+                    <Sparkles className="h-5 w-5 text-emerald-500" />
+                    Start 3-day trial
                   </h4>
-                  <p className="text-sm text-gray-600">
-                    Enjoy full access for 3 days. Auto-downgrades back to Free afterwards.
+                  <p className="mt-2 text-sm text-slate-600 dark:text-white/75">
+                    Unlock full access instantly. Downgrades automatically after the trial — no auto-charge.
                   </p>
-                </div>
-                <button
-                  onClick={handleStartTrial}
-                  disabled={isStartingTrial || hasUsedTrial || isOnTrial}
-                  className="w-full inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold py-3 px-4 hover:from-green-600 hover:to-emerald-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isStartingTrial ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Starting trial...
-                    </>
-                  ) : (
-                    <>
-                      Start 3-day Trial
-                    </>
+                  <button
+                    onClick={handleStartTrial}
+                    disabled={isStartingTrial || hasUsedTrial || isOnTrial}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isStartingTrial ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Starting trial…
+                      </>
+                    ) : (
+                      'Start free trial'
+                    )}
+                  </button>
+                  {hasUsedTrial && !isOnTrial && (
+                    <p className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-500 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                      You have already used your free trial on this account.
+                    </p>
                   )}
-                </button>
-                {hasUsedTrial && !isOnTrial && (
-                  <p className="mt-3 text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-center">
-                    You have already used your free trial on this account.
-                  </p>
-                )}
-                {isOnTrial && trialEndsDisplay && (
-                  <p className="mt-3 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-center">
-                    Your trial is active until {trialEndsDisplay}.
-                  </p>
-                )}
-              </div>
+                  {isOnTrial && trialEndsDisplay && (
+                    <p className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-600 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
+                      Trial active until {trialEndsDisplay}.
+                    </p>
+                  )}
+                  </div>
 
-              <div className="border border-gray-200 rounded-xl p-5 bg-white/90 shadow-sm flex flex-col">
-                <div className="mb-3">
-                  <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-purple-500" />
-                    Buy Now
+                  <div className="rounded-3xl border border-white/20 bg-white/80 p-6 text-slate-800 shadow-[0_24px_70px_-40px_rgba(79,70,229,0.55)] dark:border-white/10 dark:bg-slate-900/80 dark:text-white/85">
+                  <h4 className="flex items-center gap-2 text-lg font-semibold">
+                    <Shield className="h-5 w-5 text-purple-500" />
+                    Buy now
                   </h4>
-                  <p className="text-sm text-gray-600">
-                    Lock in launch pricing forever with secure Razorpay checkout.
+                  <p className="mt-2 text-sm text-slate-600 dark:text-white/75">
+                    Secure checkout with instant GST invoices and UPI support.
                   </p>
-                </div>
-                <RazorpayCheckout
-                  amount={getPrice(selectedPlanForPayment)}
-                  planId={selectedPlanForPayment.id}
-                  planName={selectedPlanForPayment.name}
-                  billingCycle={billingCycle}
-                  useLaunchPricing={showLaunchPricing}
-                  onSuccess={handlePaymentSuccess}
-                  onFailure={handlePaymentFailure}
-                  buttonText={`Pay ₹${getPrice(selectedPlanForPayment)} Securely`}
-                  buttonClassName="w-full py-3 px-6 rounded-xl text-center font-semibold transition-all duration-200 bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 shadow-lg hover:shadow-xl"
-                />
-                <div className="mt-4">
-                  <PaymentMethodsInfo />
+                  <RazorpayCheckout
+                    amount={getPrice(selectedPlanForPayment)}
+                    planId={selectedPlanForPayment.id}
+                    planName={selectedPlanForPayment.name}
+                    billingCycle={billingCycle}
+                    onSuccess={handlePaymentSuccess}
+                    onFailure={handlePaymentFailure}
+                    buttonText={`Pay ₹${getPrice(selectedPlanForPayment)} securely`}
+                    buttonClassName="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl"
+                  />
+                    <div className="mt-4 rounded-2xl border border-white/40 bg-white/60 p-4 text-xs text-slate-600 dark:border-white/10 dark:bg-slate-900/70 dark:text-white/80">
+                      <PaymentMethodsInfo />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <div className="mt-6 text-center text-xs text-gray-500 space-y-1">
-              <p>🔒 Payments processed securely by Razorpay. UPI, cards, and net banking accepted.</p>
-              <p>Need help choosing a plan? Reach us at support@promptdetective.ai</p>
             </div>
           </div>
         </div>

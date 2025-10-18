@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Rocket, Clock, Mail, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Rocket, Clock, Mail, CheckCircle, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { subscribeToWaitlist } from '../services/waitlistService';
 
 interface LocationState {
   planName?: string;
@@ -14,45 +16,64 @@ const ComingSoonPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [waitlistMessage, setWaitlistMessage] = useState('');
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     // Scroll to top when component mounts
     window.scrollTo(0, 0);
   }, []);
 
-  const handleSubscribe = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubscribe = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setFormError('Enter a valid email to join the waitlist.');
+      toast.error('Please add a valid email address.');
+      return;
+    }
+
     setIsSubmitting(true);
+    setFormError('');
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      const response = await subscribeToWaitlist({
+        email: trimmedEmail,
+        planName,
+        source: state?.fromPricing ? 'pricing-coming-soon' : 'coming-soon-page',
+        notes: 'coming-soon-waitlist',
+      });
 
-    setSubscribed(true);
-    setIsSubmitting(false);
-
-    // Reset form after 3 seconds
-    setTimeout(() => {
+      setSubscribed(true);
+      setWaitlistMessage(response.message);
       setEmail('');
-      setSubscribed(false);
-    }, 3000);
+      toast.success(response.already_joined ? 'You were already on the waitlist—we’ll keep you posted!' : 'You’re on the waitlist! We’ll email launch details soon.');
+    } catch (error: any) {
+      const message = error?.response?.data?.detail ?? 'Unable to join the waitlist right now. Please try again shortly.';
+      setFormError(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const planName = state?.planName || 'Premium';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-4 dark:from-[#050916] dark:via-[#050916] dark:to-[#0b1022]">
       <div className="max-w-4xl mx-auto">
         {/* Back Button */}
         <button
           onClick={() => state?.fromPricing ? navigate('/pricing') : navigate(-1)}
-          className="mb-8 flex items-center text-gray-600 hover:text-gray-900 transition-colors group"
+          className="mb-8 flex items-center text-gray-600 hover:text-gray-900 transition-colors group dark:text-white/70 dark:hover:text-white"
         >
           <ArrowLeft className="w-5 h-5 mr-2 transform group-hover:-translate-x-1 transition-transform" />
           Back to {state?.fromPricing ? 'Pricing' : 'Previous Page'}
         </button>
 
         {/* Main Content */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+  <div className="overflow-hidden rounded-2xl border border-white/70 bg-white shadow-xl dark:border-white/10 dark:bg-slate-900/85">
           {/* Header Section */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-12 text-center">
             <div className="flex justify-center mb-6">
@@ -72,8 +93,8 @@ const ComingSoonPage: React.FC = () => {
           <div className="px-8 py-12">
             {/* What's Coming */}
             <div className="mb-12">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <Clock className="w-6 h-6 mr-3 text-blue-600" />
+              <h2 className="mb-6 flex items-center text-2xl font-bold text-gray-900 dark:text-white">
+                <Clock className="mr-3 h-6 w-6 text-blue-600 dark:text-indigo-300" />
                 What's Coming in {planName}
               </h2>
               <div className="grid md:grid-cols-2 gap-6">
@@ -97,25 +118,25 @@ const ComingSoonPage: React.FC = () => {
                 ].map((feature, index) => (
                   <div
                     key={index}
-                    className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-100"
+                    className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-6 dark:border-indigo-500/20 dark:from-slate-900/80 dark:via-slate-900/70 dark:to-indigo-950/40"
                   >
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
                       {feature.title}
                     </h3>
-                    <p className="text-gray-600">{feature.description}</p>
+                    <p className="text-gray-600 dark:text-white/80">{feature.description}</p>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Newsletter Subscription */}
-            <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-8 border border-gray-200">
+            <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-blue-50 p-8 dark:border-slate-700/70 dark:from-slate-900/85 dark:via-slate-900/75 dark:to-indigo-950/60">
               <div className="text-center mb-6">
-                <Mail className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                <Mail className="mx-auto mb-4 h-12 w-12 text-blue-600 dark:text-indigo-300" />
+                <h3 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
                   Be the First to Know
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-white/80">
                   Join our waitlist and get exclusive early bird pricing when we launch
                 </p>
               </div>
@@ -129,30 +150,50 @@ const ComingSoonPage: React.FC = () => {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your email address"
                       required
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-100 dark:focus:border-blue-400 dark:focus:ring-blue-500/30"
                     />
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
                     >
-                      {isSubmitting ? 'Subscribing...' : 'Notify Me'}
+                      {isSubmitting ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Joining…
+                        </span>
+                      ) : (
+                        'Notify Me'
+                      )}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-3 text-center">
+                  {formError && (
+                    <p className="mt-3 text-sm font-medium text-rose-600 dark:text-rose-300">{formError}</p>
+                  )}
+                  <p className="mt-3 text-center text-xs text-gray-500 dark:text-white/60">
                     We respect your privacy. Unsubscribe at any time.
                   </p>
                 </form>
               ) : (
                 <div className="max-w-md mx-auto text-center">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                    <h4 className="text-lg font-semibold text-green-900 mb-2">
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-200">
+                    <CheckCircle className="mx-auto mb-3 h-12 w-12 text-emerald-500 dark:text-emerald-300" />
+                    <h4 className="mb-2 text-lg font-semibold text-emerald-900 dark:text-emerald-100">
                       You're on the list! 🎉
                     </h4>
-                    <p className="text-green-700">
-                      We'll notify you as soon as the {planName} plan is available.
+                    <p className="text-sm dark:text-white/80">
+                      {waitlistMessage || `We'll notify you as soon as the ${planName} plan is available.`}
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSubscribed(false);
+                        setWaitlistMessage('');
+                      }}
+                      className="mt-4 inline-flex items-center justify-center rounded-full border border-emerald-400 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-500/10 dark:border-emerald-300/40 dark:text-emerald-200 dark:hover:bg-emerald-500/20"
+                    >
+                      Join with another email
+                    </button>
                   </div>
                 </div>
               )}
@@ -160,7 +201,7 @@ const ComingSoonPage: React.FC = () => {
 
             {/* Timeline */}
             <div className="mt-12">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+              <h3 className="mb-6 text-center text-2xl font-bold text-gray-900 dark:text-white">
                 Launch Timeline
               </h3>
               <div className="relative">
@@ -172,16 +213,16 @@ const ComingSoonPage: React.FC = () => {
                     { phase: 'Phase 3', title: 'Public Launch', status: 'Upcoming', date: 'Q2 2025' }
                   ].map((item, index) => (
                     <div key={index} className="relative flex items-center">
-                      <div className="flex-1 text-right pr-8">
-                        <h4 className="font-semibold text-gray-900">{item.phase}</h4>
-                        <p className="text-sm text-gray-600">{item.title}</p>
+                      <div className="flex-1 pr-8 text-right">
+                        <h4 className="font-semibold text-gray-900 dark:text-white">{item.phase}</h4>
+                        <p className="text-sm text-gray-600 dark:text-white/80">{item.title}</p>
                       </div>
-                      <div className="relative z-10 flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full border-4 border-white shadow-lg">
+                      <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg dark:border-slate-900">
                         <span className="text-white font-bold text-sm">{index + 1}</span>
                       </div>
                       <div className="flex-1 pl-8">
-                        <p className="text-sm font-medium text-blue-600">{item.status}</p>
-                        <p className="text-sm text-gray-600">{item.date}</p>
+                        <p className="text-sm font-medium text-blue-600 dark:text-indigo-300">{item.status}</p>
+                        <p className="text-sm text-gray-600 dark:text-white/70">{item.date}</p>
                       </div>
                     </div>
                   ))}
@@ -193,13 +234,13 @@ const ComingSoonPage: React.FC = () => {
             <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={() => navigate('/pricing')}
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                className="rounded-lg bg-blue-600 px-8 py-3 font-semibold text-white transition-colors hover:bg-blue-700"
               >
                 View All Plans
               </button>
               <button
                 onClick={() => navigate('/dashboard')}
-                className="px-8 py-3 bg-white text-blue-600 border-2 border-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+                className="rounded-lg border-2 border-blue-600 bg-white px-8 py-3 font-semibold text-blue-600 transition-colors hover:bg-blue-50 dark:border-indigo-400 dark:bg-transparent dark:text-indigo-200 dark:hover:bg-indigo-500/10"
               >
                 Go to Dashboard
               </button>
@@ -208,9 +249,9 @@ const ComingSoonPage: React.FC = () => {
         </div>
 
         {/* Additional Info */}
-        <div className="mt-8 text-center text-gray-600">
+        <div className="mt-8 text-center text-gray-600 dark:text-white/70">
           <p className="text-sm">
-            Have questions? <a href="mailto:support@promptdetective.com" className="text-blue-600 hover:underline">Contact our team</a>
+            Have questions? <a href="mailto:support@promptdetective.com" className="text-blue-600 hover:underline dark:text-indigo-300 dark:hover:text-indigo-200">Contact our team</a>
           </p>
         </div>
       </div>

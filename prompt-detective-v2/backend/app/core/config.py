@@ -2,7 +2,7 @@
 Configuration settings with environment variables
 """
 import os
-from typing import Optional
+from typing import Optional, Any
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -75,6 +75,46 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: Optional[str] = os.getenv("ADMIN_PASSWORD")
     DEFAULT_ADMIN_PASSWORD: str = os.getenv("DEFAULT_ADMIN_PASSWORD", "ChangeMe!123!")
     
+    @staticmethod
+    def _strip_optional(value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return value.strip()
+
+    @staticmethod
+    def _collapse_secret(value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return "".join(value.split())
+
+    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+        """Normalize secrets that are sensitive to whitespace characters."""
+        provider = (self.EMAIL_PROVIDER or "").lower()
+
+        if self.SMTP_USERNAME:
+            self.SMTP_USERNAME = self.SMTP_USERNAME.strip()
+
+        if self.SMTP_PASSWORD:
+            cleaned = self.SMTP_PASSWORD.strip()
+            if provider in {"gmail", "google"}:
+                cleaned = self._collapse_secret(cleaned)
+            self.SMTP_PASSWORD = cleaned
+
+        if self.EMAIL_FROM_ADDRESS:
+            self.EMAIL_FROM_ADDRESS = self.EMAIL_FROM_ADDRESS.strip()
+
+        if self.SUPPORT_EMAIL:
+            self.SUPPORT_EMAIL = self.SUPPORT_EMAIL.strip()
+
+        if self.BREVO_API_KEY:
+            self.BREVO_API_KEY = self._collapse_secret(self.BREVO_API_KEY.strip())
+
+        if self.RESEND_API_KEY:
+            self.RESEND_API_KEY = self._collapse_secret(self.RESEND_API_KEY.strip())
+
+        if self.SECRET_KEY:
+            self.SECRET_KEY = self.SECRET_KEY.strip()
+
     @property
     def allowed_origins_list(self) -> list[str]:
         """Convert comma-separated origins to list"""

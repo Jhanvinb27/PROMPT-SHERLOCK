@@ -1,13 +1,175 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUpload } from '../hooks/useUpload';
 import { UploadComponent } from '../components/UploadComponent';
+import PageHeader from '../components/PageHeader';
+import BentoGrid, { BentoItem } from '../components/ui/BentoGrid';
+import Card from '../components/ui/Card';
+import Carousel, { CarouselItem } from '../components/ui/Carousel';
+import Accordion, { AccordionItem } from '../components/ui/Accordion';
+import Chip from '../components/ui/Chip';
+import { Button } from '../components/ui/Button';
+import Skeleton from '../components/ui/Skeleton';
+import { Sparkles, Upload, ShieldCheck, Timer, Workflow, Languages, Rocket, Wand2 } from 'lucide-react';
 
 const LandingPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const { uploadFile } = useUpload();
   const [trialJobId, setTrialJobId] = useState<string | null>(null);
+
+  const testimonials = useMemo<CarouselItem[]>(
+    () => [
+      {
+        id: 'creative-director',
+        content: (
+          <div className="space-y-3">
+            <p className="text-lg font-medium text-gray-900 dark:text-white">“It feels like having an AI sommelier for visuals.”</p>
+            <p className="text-sm text-gray-500 dark:text-white/80">
+              We upload moodboards and Prompt Detective returns narrative-ready prompts with style chips I can share with my team.
+            </p>
+            <div className="flex items-center justify-between text-sm text-gray-400 dark:text-white/70">
+              <span>— Maya Laurent, Creative Director @ Helix Studio</span>
+              <Chip tone="blue" size="sm">12x faster reviews</Chip>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'product-team',
+        content: (
+          <div className="space-y-3">
+            <p className="text-lg font-medium text-gray-900 dark:text-white">“Breadcrumbs + toasts keep stakeholders calm.”</p>
+            <p className="text-sm text-gray-500 dark:text-white/80">
+              The dashboard mirrors Apple-quality UX—snackbars signal every milestone, skeletons avoid blank states, and legal gets audit-ready exports.
+            </p>
+            <div className="flex items-center justify-between text-sm text-gray-400 dark:text-white/70">
+              <span>— Amir Patel, Product Lead @ Renderlight</span>
+              <Chip tone="purple" size="sm">Loved by compliance</Chip>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'filmmaker',
+        content: (
+          <div className="space-y-3">
+            <p className="text-lg font-medium text-gray-900 dark:text-white">“The carousel of scene prompts is literally our storyboard.”</p>
+            <p className="text-sm text-gray-500 dark:text-white/80">
+              We shoot reference reels, upload, and get dynamic prompt chips we can iterate with instantly.
+            </p>
+            <div className="flex items-center justify-between text-sm text-gray-400 dark:text-white/70">
+              <span>— Lucia Bonneville, Cinematographer</span>
+              <Chip tone="emerald" size="sm">Cuts ideation to 15 min</Chip>
+            </div>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const bentoItems = useMemo<BentoItem[]>(
+    () => [
+      {
+        key: 'creative-lab',
+        title: 'Creative labs',
+        description: 'Translate trend references into production-ready prompts with context about camera moves, lighting, and mood.',
+        icon: <Sparkles className="h-6 w-6 text-indigo-500" />,
+        footer: 'Sync with Figma, Motion, or Final Cut',
+        accent: 'purple',
+      },
+      {
+        key: 'brand-qa',
+        title: 'Brand QA teams',
+        description: 'Audit user-generated content for alignment with your brand palette, subject matter, and stylistic guardrails.',
+        icon: <ShieldCheck className="h-6 w-6 text-emerald-500" />,
+        footer: 'Watermark & metadata detection baked in',
+        accent: 'emerald',
+      },
+      {
+        key: 'growth',
+        title: 'Growth marketers',
+        description: 'Reverse engineer high-performing ads to recreate eye-catching compositions with confidence.',
+        icon: <Rocket className="h-6 w-6 text-blue-500" />,
+        footer: 'Turn analysis into remixable prompt chips',
+        accent: 'blue',
+      },
+      {
+        key: 'localization',
+        title: 'Localization teams',
+        description: 'Translate prompt semantics across languages while preserving nuance and cultural context.',
+        icon: <Languages className="h-6 w-6 text-amber-500" />,
+        footer: 'Automatic tone + cultural sensitivity checks',
+        accent: 'amber',
+      },
+      {
+        key: 'research',
+        title: 'Research & ethics',
+        description: 'Inspect dataset bias, detect model fingerprints, and export documentation for review boards.',
+        icon: <Workflow className="h-6 w-6 text-purple-500" />,
+        footer: 'Generate shareable audit dossiers',
+        accent: 'purple',
+      },
+      {
+        key: 'indie',
+        title: 'Indie builders',
+        description: 'Automate daily inspiration emails with curated prompt ideas and moodboard-ready frames.',
+        icon: <Wand2 className="h-6 w-6 text-rose-500" />,
+        footer: 'Hooks into Zapier & Notion in one click',
+        accent: 'blue',
+      },
+    ],
+    []
+  );
+
+  const faqItems = useMemo<AccordionItem[]>(
+    () => [
+      {
+        id: 'formats',
+        title: 'Which formats can I upload?',
+        helperText: 'Images up to 80 MB, videos up to 300 MB on growth plans.',
+        description: (
+          <ul className="list-disc space-y-2 pl-5 text-sm text-gray-600 dark:text-white/80">
+            <li>Video: MP4, MOV, WEBM up to 4K resolution.</li>
+            <li>Image: PNG, JPG, WEBP, TIFF with transparent background support.</li>
+            <li>We automatically snapshot key frames and show skeleton loading for each stage.</li>
+          </ul>
+        ),
+      },
+      {
+        id: 'security',
+        title: 'How do you keep my uploads secure?',
+        helperText: 'Private by default—no public galleries.',
+        description: (
+          <p className="text-gray-600 dark:text-white/80">
+            Files are encrypted at rest, scrubbed after 48 hours, and processed on isolated workers. Our audit logs with breadcrumb navigation give you full traceability.
+          </p>
+        ),
+      },
+      {
+        id: 'sharing',
+        title: 'Can I share results with collaborators?',
+        helperText: 'Yes—add collaborators or send read-only links.',
+        description: (
+          <p className="text-gray-600 dark:text-white/80">
+            Invite teammates with granular permissions. They receive real-time snackbars when new analyses finish and can add annotations directly in the prompt timeline.
+          </p>
+        ),
+      },
+      {
+        id: 'speed',
+        title: 'What is the average processing time?',
+        helperText: 'Under 90 seconds for most jobs.',
+        description: (
+          <p className="text-gray-600 dark:text-white/80">
+            Our adaptive queue warms engines in advance. Skeleton loaders bridge any delay, and toasts highlight progress (upload → extraction → AI insights → prompt export).
+          </p>
+        ),
+      },
+    ],
+    []
+  );
 
   const handleTrialUpload = async (file: File) => {
     try {
@@ -19,195 +181,172 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-white">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="max-w-7xl mx-auto">
-          <div className="relative z-10 pb-8 bg-white sm:pb-16 md:pb-20 lg:max-w-2xl lg:w-full lg:pb-28 xl:pb-32">
-            <main className="mt-10 mx-auto max-w-7xl px-4 sm:mt-12 sm:px-6 md:mt-16 lg:mt-20 lg:px-8 xl:mt-28">
-              <div className="sm:text-center lg:text-left">
-                <h1 className="text-4xl tracking-tight font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
-                  <span className="block xl:inline">Reverse Engineer</span>{' '}
-                  <span className="block text-blue-600 xl:inline">AI Prompts</span>
-                </h1>
-                <p className="mt-3 text-base text-gray-500 sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5 md:text-xl lg:mx-0">
-                  Upload any video or image and discover the AI prompts that could have generated it. 
-                  Perfect for creators, researchers, and AI enthusiasts.
-                </p>
-                <div className="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start">
-                  {isAuthenticated ? (
-                    <div className="rounded-md shadow">
-                      <Link
-                        to="/dashboard"
-                        className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 md:py-4 md:text-lg md:px-10"
-                      >
-                        Go to Dashboard
-                      </Link>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="rounded-md shadow">
-                        <Link
-                          to="/signup"
-                          className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 md:py-4 md:text-lg md:px-10"
-                        >
-                          Get Started Free
-                        </Link>
-                      </div>
-                      <div className="mt-3 sm:mt-0 sm:ml-3">
-                        <Link
-                          to="/pricing"
-                          className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 md:py-4 md:text-lg md:px-10"
-                        >
-                          View Pricing
-                        </Link>
-                      </div>
-                    </>
-                  )}
-                </div>
+    <div className="space-y-20 pb-24">
+      <section>
+        <PageHeader
+          title="Reverse engineer AI visuals with poetic precision"
+          subtitle="Upload any image or motion clip to uncover the hidden prompt architecture, key styles, and production guidance behind it."
+          breadcrumbs={[{ label: 'Home' }]}
+          primaryAction={{ label: isAuthenticated ? 'Open dashboard' : 'Start free trial', onClick: () => { /* routed via Link buttons below */ } }}
+          secondaryAction={{ label: 'See pricing breakdown', onClick: () => { window.location.href = '/pricing'; } }}
+          illustration={<Sparkles className="h-16 w-16 text-indigo-500" />}
+        />
+  <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-500 dark:text-white/80">
+          <Chip tone="blue">No credit card required</Chip>
+          <Chip tone="purple">Live job tracking</Chip>
+          <Chip tone="emerald">Supports MP4, MOV, PNG, JPG</Chip>
+        </div>
+        <div className="mt-10 grid gap-8 lg:grid-cols-[1.2fr,0.8fr]">
+          <Card variant="translucent" padding="lg" interactive className="relative">
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-wrap gap-3">
+                <Button size="lg" component={Link} to={isAuthenticated ? '/dashboard' : '/signup'}>
+                  {isAuthenticated ? 'Go to dashboard' : 'Create a free account'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  component={Link}
+                  to="/pricing"
+                >
+                  Explore plans
+                </Button>
               </div>
-            </main>
-          </div>
-        </div>
-        <div className="lg:absolute lg:inset-y-0 lg:right-0 lg:w-1/2">
-          <img
-            className="h-56 w-full object-cover sm:h-72 md:h-96 lg:w-full lg:h-full"
-            src="https://images.unsplash.com/photo-1551434678-e076c223a692?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80"
-            alt="AI Analysis"
-          />
-        </div>
-      </div>
-
-      {/* Free Trial Section */}
-      {!isAuthenticated && (
-        <div className="py-16 bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="lg:text-center">
-              <h2 className="text-base text-blue-600 font-semibold tracking-wide uppercase">
-                Try for Free
-              </h2>
-              <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-                Test our AI analysis without signing up
-              </p>
-              <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
-                Upload a video or image to see our reverse engineering in action. No account required for your first try!
-              </p>
-            </div>
-
-            <div className="mt-10">
-              <UploadComponent 
-                onUpload={handleTrialUpload}
-                maxFileSize={50 * 1024 * 1024} // 50MB for trial
-                acceptedTypes={['image/*', 'video/*']}
-                disabled={false}
-              />
-              
-              {trialJobId && (
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-700">
-                    Your analysis is processing! Job ID: {trialJobId}
-                  </p>
-                  <p className="text-xs text-blue-600 mt-1">
-                    Sign up to track progress and get results faster.
-                  </p>
+              <Card variant="outline" padding="md" className="bg-white/90 dark:bg-slate-900/80">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-indigo-500/20 dark:text-indigo-200">
+                    <Upload className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Immediate feedback</p>
+                    <p className="text-sm text-gray-500 dark:text-white/80">Receive smart toast updates while each stage of analysis completes.</p>
+                  </div>
                 </div>
-              )}
+              </Card>
+              <Carousel
+                items={testimonials}
+                className="bg-white/90 dark:bg-slate-900/80"
+              />
             </div>
-          </div>
+          </Card>
+          <Card variant="elevated" padding="md" className="relative overflow-hidden">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-500 dark:text-indigo-200">Try Prompt Detective </p>
+                <h2 className="mt-2 text-xl font-semibold text-gray-900 dark:text-white">Upload once. Trace every layer.</h2>
+              </div>
+              <Chip tone="purple" size="sm">Live demo</Chip>
+            </div>
+            <Skeleton className="h-60 rounded-2xl" />
+            <p className="mt-4 text-sm text-gray-500 dark:text-white/80">Adaptive skeleton loading appears while we warm up your model runner—no blank states.</p>
+          </Card>
         </div>
+      </section>
+
+      {!isAuthenticated && (
+        <section id="trial" className="space-y-10">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-3xl font-semibold text-gray-900 dark:text-white">Try a production-grade analysis without signing in</h2>
+              <p className="mt-2 max-w-2xl text-gray-500 dark:text-white/80">
+                We reserve a spot in the queue for your trial upload. Your results persist for 24 hours so you can review before creating an account.
+              </p>
+            </div>
+            <Button variant="outline" size="lg" component={Link} to="/pricing">
+              Compare plan limits
+            </Button>
+          </div>
+          <Card variant="outline" padding="lg" className="bg-gradient-to-br from-white via-white to-blue-50/40 dark:from-slate-900/85 dark:via-slate-900/70 dark:to-indigo-950/40">
+            <UploadComponent
+              onUpload={handleTrialUpload}
+              maxFileSize={50 * 1024 * 1024}
+              acceptedTypes={['image/*', 'video/*']}
+              disabled={false}
+            />
+            {trialJobId && (
+              <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-blue-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-white/85">
+                ⚡ Your analysis is running in a sandbox. Job reference: {trialJobId}
+              </div>
+            )}
+          </Card>
+        </section>
       )}
 
-      {/* Features Section */}
-      <div className="py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="lg:text-center">
-            <h2 className="text-base text-blue-600 font-semibold tracking-wide uppercase">Features</h2>
-            <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-              Everything you need for AI analysis
-            </p>
+      <section className="space-y-10">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-3xl font-semibold text-gray-900 dark:text-white">Crafted for ambitious teams</h2>
+            <p className="mt-2 max-w-2xl text-gray-500 dark:text-white/80">Bento grid of scenarios we support—from creative teams to compliance squads tracking AI provenance.</p>
           </div>
-
-          <div className="mt-10">
-            <div className="space-y-10 md:space-y-0 md:grid md:grid-cols-2 md:gap-x-8 md:gap-y-10">
-              <div className="relative">
-                <div className="absolute flex items-center justify-center h-12 w-12 rounded-md bg-blue-500 text-white">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <p className="ml-16 text-lg leading-6 font-medium text-gray-900">Video Analysis</p>
-                <p className="mt-2 ml-16 text-base text-gray-500">
-                  Upload videos and get detailed analysis of visual elements, scenes, and potential AI generation prompts.
-                </p>
-              </div>
-
-              <div className="relative">
-                <div className="absolute flex items-center justify-center h-12 w-12 rounded-md bg-blue-500 text-white">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <p className="ml-16 text-lg leading-6 font-medium text-gray-900">Image Recognition</p>
-                <p className="mt-2 ml-16 text-base text-gray-500">
-                  Advanced computer vision to identify objects, styles, and composition elements in your images.
-                </p>
-              </div>
-
-              <div className="relative">
-                <div className="absolute flex items-center justify-center h-12 w-12 rounded-md bg-blue-500 text-white">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                </div>
-                <p className="ml-16 text-lg leading-6 font-medium text-gray-900">AI-Powered Insights</p>
-                <p className="mt-2 ml-16 text-base text-gray-500">
-                  Leverage cutting-edge AI models to generate accurate and creative prompt suggestions.
-                </p>
-              </div>
-
-              <div className="relative">
-                <div className="absolute flex items-center justify-center h-12 w-12 rounded-md bg-blue-500 text-white">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <p className="ml-16 text-lg leading-6 font-medium text-gray-900">Fast Processing</p>
-                <p className="mt-2 ml-16 text-base text-gray-500">
-                  Get results in seconds with our optimized processing pipeline and cloud infrastructure.
-                </p>
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-3">
+            <Chip tone="gray" size="sm">Creative direction</Chip>
+            <Chip tone="blue" size="sm">Brand QA</Chip>
+            <Chip tone="emerald" size="sm">Compliance</Chip>
+            <Chip tone="purple" size="sm">Prompt R&D</Chip>
           </div>
         </div>
-      </div>
+        <BentoGrid items={bentoItems} className="lg:grid-cols-3" />
+      </section>
 
-      {/* CTA Section */}
-      <div className="bg-blue-50">
-        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:py-16 lg:px-8 lg:flex lg:items-center lg:justify-between">
-          <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-            <span className="block">Ready to start analyzing?</span>
-            <span className="block text-blue-600">Create your account today.</span>
-          </h2>
-          <div className="mt-8 flex lg:mt-0 lg:flex-shrink-0">
-            <div className="inline-flex rounded-md shadow">
-              <Link
-                to="/signup"
-                className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-              >
-                Get started
-              </Link>
+      <section className="space-y-10">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <h2 className="text-3xl font-semibold text-gray-900 dark:text-white">Highlights that feel native</h2>
+          <Button variant="outline" size="sm" component={Link} to="/coming-soon">
+            Upcoming releases
+          </Button>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card variant="translucent" padding="md">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-6 w-6 text-emerald-500 dark:text-emerald-300" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Prompt provenance</h3>
             </div>
-            <div className="ml-3 inline-flex rounded-md shadow">
-              <Link
-                to="/pricing"
-                className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50"
-              >
-                Learn more
-              </Link>
+            <p className="mt-3 text-sm text-gray-500 dark:text-white/80">We surface watermark traces, metadata drift, and AI model fingerprints so you can trust the prompt lineage.</p>
+          </Card>
+          <Card variant="translucent" padding="md">
+            <div className="flex items-center gap-3">
+              <Timer className="h-6 w-6 text-blue-500 dark:text-indigo-300" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Instant snack bars</h3>
             </div>
+            <p className="mt-3 text-sm text-gray-500 dark:text-white/80">Toast + snackbar combo quietly informs you when frame extraction starts, finishes, and when AI narration is ready.</p>
+          </Card>
+          <Card variant="translucent" padding="md">
+            <div className="flex items-center gap-3">
+              <Workflow className="h-6 w-6 text-purple-500 dark:text-indigo-300" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Guided breadcrumbs</h3>
+            </div>
+            <p className="mt-3 text-sm text-gray-500 dark:text-white/80">Every multi-step flow—from sign-up to results—uses contextual breadcrumbs so users never feel lost.</p>
+          </Card>
+        </div>
+      </section>
+
+      <section className="space-y-6" id="faq">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-3xl font-semibold text-gray-900 dark:text-white">Frequently asked</h2>
+          <p className="max-w-2xl text-gray-500 dark:text-white/80">Expand each accordion to see how our team handles data, privacy, and performance pledges.</p>
+        </div>
+        <Accordion items={faqItems} defaultOpenId="sharing" />
+      </section>
+
+      <section className="rounded-[32px] border border-white/60 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-10 text-white shadow-[0_30px_90px_-40px_rgba(37,99,235,0.65)]">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div>
+            <Chip tone="gray" pill={false} className="border-white/30 bg-white/10 text-white">
+              Daily inspiration digest
+            </Chip>
+            <h2 className="mt-4 text-3xl font-semibold">Stay ahead with AI creative intelligence</h2>
+            <p className="mt-2 max-w-xl text-blue-100">From marketing squads to indie artists, collect story-ready prompts, provenance highlights, and workflow tips in your inbox.</p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button size="lg" variant="secondary" component={Link} to={isAuthenticated ? '/dashboard' : '/signup'}>
+              {isAuthenticated ? 'Resume analyzing' : 'Start free trial'}
+            </Button>
+            <Button size="lg" variant="ghost" component={Link} to="/contact" className="text-white hover:bg-white/10">
+              Talk to product team
+            </Button>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

@@ -24,7 +24,6 @@ class CreateOrderRequest(BaseModel):
     plan: Optional[str] = None  # For subscriptions: starter, pro, business
     billing_cycle: Optional[str] = None  # monthly or yearly
     pack_name: Optional[str] = None  # For credit packs: Mini, Standard, Power
-    use_launch_pricing: bool = False  # Lock price for lifetime
 
 
 class VerifyPaymentRequest(BaseModel):
@@ -36,7 +35,6 @@ class VerifyPaymentRequest(BaseModel):
     plan: Optional[str] = None
     billing_cycle: Optional[str] = None
     pack_name: Optional[str] = None
-    use_launch_pricing: bool = False
 
 
 class OrderResponse(BaseModel):
@@ -62,24 +60,14 @@ class PaymentHistoryResponse(BaseModel):
 
 # ==================== Helper Functions ====================
 
-def get_plan_pricing(plan: str, billing_cycle: str, is_launch: bool = False) -> float:
+def get_plan_pricing(plan: str, billing_cycle: str) -> float:
     """Get pricing for subscription plan"""
-    # Launch pricing (locked forever)
-    if is_launch:
-        launch_pricing = {
-            "starter": {"monthly": 99, "yearly": 999},
-            "pro": {"monthly": 299, "yearly": 2999},
-            "business": {"monthly": 999, "yearly": 9999}
-        }
-        return launch_pricing.get(plan, {}).get(billing_cycle, 0)
-    
-    # Regular pricing
-    regular_pricing = {
-        "starter": {"monthly": 199, "yearly": 1999},
-        "pro": {"monthly": 499, "yearly": 4999},
-        "business": {"monthly": 1499, "yearly": 14999}
+    pricing = {
+        "starter": {"monthly": 299, "yearly": 2990},
+        "pro": {"monthly": 699, "yearly": 6990},
+        "business": {"monthly": 1299, "yearly": 12990}
     }
-    return regular_pricing.get(plan, {}).get(billing_cycle, 0)
+    return pricing.get(plan, {}).get(billing_cycle, 0)
 
 
 def get_credit_pack_pricing(pack_name: str) -> float:
@@ -114,8 +102,7 @@ async def create_payment_order(
             
             amount = get_plan_pricing(
                 request.plan,
-                request.billing_cycle,
-                request.use_launch_pricing
+                request.billing_cycle
             )
             
             notes = {
@@ -123,8 +110,7 @@ async def create_payment_order(
                 "user_email": current_user.email,
                 "order_type": "subscription",
                 "plan": request.plan,
-                "billing_cycle": request.billing_cycle,
-                "launch_pricing": request.use_launch_pricing
+                "billing_cycle": request.billing_cycle
             }
             
             receipt_id = f"sub_{current_user.id}_{request.plan}_{request.billing_cycle}"
@@ -202,8 +188,7 @@ async def verify_payment(
                 billing_cycle=request.billing_cycle,
                 razorpay_order_id=request.razorpay_order_id,
                 razorpay_payment_id=request.razorpay_payment_id,
-                razorpay_signature=request.razorpay_signature,
-                is_launch_pricing=request.use_launch_pricing
+                razorpay_signature=request.razorpay_signature
             )
             
             return {

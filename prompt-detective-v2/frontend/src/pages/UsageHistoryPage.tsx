@@ -1,21 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import { useUpload } from '../hooks/useUpload';
-import { 
-  FileVideo, 
-  FileImage, 
-  Calendar, 
-  Clock, 
-  Download, 
-  Eye, 
-  Copy, 
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Calendar,
+  Check,
+  Clock,
+  Copy,
+  Download,
+  Eye,
+  FileImage,
+  FileVideo,
   Filter,
+  Loader2,
   Search,
-  ChevronDown,
   Sparkles,
   TrendingUp,
-  X
+  X,
 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { useUpload } from '../hooks/useUpload';
+import PageContainer from '../components/page/PageContainer';
+import PageHeader from '../components/PageHeader';
+import PageSection from '../components/page/PageSection';
+import Card from '../components/ui/Card';
+import Chip from '../components/ui/Chip';
+import { Button } from '../components/ui/Button';
 
 interface UsageHistoryItem {
   job_id: string;
@@ -38,385 +45,456 @@ interface UsageHistoryItem {
   thumbnail_url?: string;
 }
 
+type HistoryFilter = 'all' | 'image' | 'video' | 'completed' | 'failed';
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+const formatDuration = (seconds?: number) => {
+  if (!seconds) return '—';
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes}m ${remainder}s`;
+};
+
+const historyFilters: { label: string; value: HistoryFilter }[] = [
+  { label: 'All items', value: 'all' },
+  { label: 'Images', value: 'image' },
+  { label: 'Videos', value: 'video' },
+  { label: 'Completed', value: 'completed' },
+  { label: 'Failed', value: 'failed' },
+];
+
 const UsageHistoryPage: React.FC = () => {
   const { user } = useAuth();
   const { listJobs } = useUpload();
   const [items, setItems] = useState<UsageHistoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<UsageHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'image' | 'video' | 'completed' | 'failed'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<UsageHistoryItem | null>(null);
-  const [showModal, setShowModal] = useState(false);
+  const [brokenThumbnails, setBrokenThumbnails] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    loadUsageHistory();
-  }, []);
+    const fetchHistory = async () => {
+      try {
+        setIsLoading(true);
+        const response = await listJobs('', 60, 0);
+        setItems(response.jobs || []);
+      } catch (error) {
+        console.error('Failed to load usage history:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, [listJobs]);
 
   useEffect(() => {
-    filterItems();
-  }, [items, selectedFilter, searchQuery]);
+    let next = [...items];
 
-  const loadUsageHistory = async () => {
-    try {
-      setIsLoading(true);
-      const response = await listJobs('', 50, 0); // Load more items for history
-      setItems(response.jobs || []);
-    } catch (error) {
-      console.error('Failed to load usage history:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const filterItems = () => {
-    let filtered = items;
-
-    // Apply content type filter
     if (selectedFilter === 'image' || selectedFilter === 'video') {
-      filtered = filtered.filter(item => item.content_type?.startsWith(selectedFilter));
+      next = next.filter((item) => item.content_type?.startsWith(selectedFilter));
     } else if (selectedFilter === 'completed' || selectedFilter === 'failed') {
-      filtered = filtered.filter(item => item.status === selectedFilter);
+      next = next.filter((item) => item.status === selectedFilter);
     }
 
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter(item =>
-        item.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.main_prompt && item.main_prompt.toLowerCase().includes(searchQuery.toLowerCase()))
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      next = next.filter(
+        (item) =>
+          item.filename.toLowerCase().includes(query) ||
+          item.main_prompt?.toLowerCase().includes(query) ||
+          item.prompt_preview?.toLowerCase().includes(query)
       );
     }
 
-    setFilteredItems(filtered);
+    setFilteredItems(next);
+  }, [items, selectedFilter, searchQuery]);
+
+  const stats = useMemo(() => {
+    const total = items.length;
+    const completed = items.filter((item) => item.status === 'completed').length;
+    const videos = items.filter((item) => item.content_type?.startsWith('video')).length;
+    const images = items.filter((item) => item.content_type?.startsWith('image')).length;
+
+    return {
+      total,
+      completed,
+      videos,
+      images,
+    };
+  }, [items]);
+
+  const statCards = useMemo(
+    () => [
+      {
+        key: 'total',
+        label: 'Total analyses',
+        value: stats.total,
+        helper: 'All uploads in scope',
+        icon: <TrendingUp className="h-5 w-5 text-indigo-500" />,
+      },
+      {
+        key: 'completed',
+        label: 'Completed jobs',
+        value: stats.completed,
+        helper: 'Ready for export',
+        icon: <Sparkles className="h-5 w-5 text-emerald-500" />,
+      },
+      {
+        key: 'videos',
+        label: 'Video assets',
+        value: stats.videos,
+        helper: 'Motion analyses',
+        icon: <FileVideo className="h-5 w-5 text-blue-500" />,
+      },
+      {
+        key: 'images',
+        label: 'Image assets',
+        value: stats.images,
+        helper: 'Still references',
+        icon: <FileImage className="h-5 w-5 text-purple-500" />,
+      },
+    ],
+    [stats]
+  );
+
+  const applyCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getStatusColor = (status: string) => {
+  const getStatusTone = (status: UsageHistoryItem['status']) => {
     switch (status) {
-      case 'completed': return 'text-green-600 bg-green-100';
-      case 'processing': return 'text-blue-600 bg-blue-100';
-      case 'pending': return 'text-yellow-600 bg-yellow-100';
-      case 'failed': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'completed':
+        return { tone: 'emerald' as const, label: 'Completed' };
+      case 'processing':
+        return { tone: 'amber' as const, label: 'Processing' };
+      case 'pending':
+        return { tone: 'blue' as const, label: 'Queued' };
+      case 'failed':
+        return { tone: 'rose' as const, label: 'Failed' };
+      default:
+        return { tone: 'gray' as const, label: 'Unknown' };
     }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    // Add toast notification here
-  };
-
-  const getThumbnailUrl = (item: UsageHistoryItem) => {
-    // Return thumbnail URL if available, otherwise return placeholder
-    if (item.thumbnail_url) {
-      // thumbnail_url already contains the correct path like "/static/thumbnails/..."
-      return item.thumbnail_url;
-    }
-    return item.content_type?.startsWith('video') 
-      ? '/placeholder-video.jpg'
-      : '/placeholder-image.jpg';
-  };
-
-  const stats = {
-    total: items.length,
-    completed: items.filter(item => item.status === 'completed').length,
-    videos: items.filter(item => item.content_type?.startsWith('video')).length,
-    images: items.filter(item => item.content_type?.startsWith('image')).length,
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
-      {/* Parallax Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600">
-        <div className="absolute inset-0 bg-black bg-opacity-20"></div>
-        <div className="relative max-w-7xl mx-auto px-4 py-16">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-white mb-4 tracking-tight">
-              Usage History
-            </h1>
-            <p className="text-xl text-blue-100 mb-8">
-              Track your AI analysis journey and revisit your generated prompts
-            </p>
-            
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-              {[
-                { label: 'Total Analyses', value: stats.total, icon: TrendingUp, color: 'bg-white/20' },
-                { label: 'Completed', value: stats.completed, icon: Sparkles, color: 'bg-green-500/20' },
-                { label: 'Videos', value: stats.videos, icon: FileVideo, color: 'bg-blue-500/20' },
-                { label: 'Images', value: stats.images, icon: FileImage, color: 'bg-purple-500/20' }
-              ].map((stat, index) => (
-                <div key={index} className={`${stat.color} backdrop-blur-sm rounded-lg p-4 text-white`}>
-                  <stat.icon className="w-6 h-6 mx-auto mb-2" />
-                  <p className="text-2xl font-bold">{stat.value}</p>
-                  <p className="text-sm opacity-90">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-white/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-white/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/2"></div>
+    <PageContainer>
+      <PageHeader
+        title="Usage history"
+        subtitle="Every analysis you run is archived with prompt previews, enhancement markers, and export-ready metadata."
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'History' }]}
+        primaryAction={{ label: 'Upload new asset', onClick: () => window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+        secondaryAction={{ label: 'Export CSV', onClick: () => console.log('Export history requested') }}
+        illustration={<HistorySpark />}
+      />
+
+      <div className="flex flex-wrap gap-3 text-sm text-gray-500 dark:text-slate-400">
+        <Chip tone="blue" size="sm">Live filters</Chip>
+        <Chip tone="emerald" size="sm">Prompt previews</Chip>
+        <Chip tone="purple" size="sm">Enhancement markers</Chip>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Filters and Search */}
-        <div className="mb-8 bg-white rounded-xl shadow-lg p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            {/* Search */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search files or prompts..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+      <PageSection
+        title="Snapshot"
+        description="Monitor how usage trends across formats and quickly spot the outcome distribution."
+        icon={<TrendingUp className="h-6 w-6" />}
+        variant="translucent"
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {statCards.map((stat) => (
+            <Card
+              key={stat.key}
+              variant="outline"
+              padding="md"
+              className="flex flex-col gap-3 bg-white/85 dark:bg-slate-900/70"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-500 dark:text-slate-400">{stat.label}</span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-indigo-500/10 dark:text-indigo-200">
+                  {stat.icon}
+                </span>
+              </div>
+              <p className="text-3xl font-semibold text-gray-900 dark:text-slate-100">{stat.value}</p>
+              <span className="text-xs uppercase tracking-wide text-gray-400 dark:text-slate-500">{stat.helper}</span>
+            </Card>
+          ))}
+        </div>
+      </PageSection>
 
-            {/* Filter Dropdown */}
-            <div className="relative">
-              <select
-                value={selectedFilter}
-                onChange={(e) => setSelectedFilter(e.target.value as any)}
-                className="appearance-none bg-white border border-gray-200 rounded-lg px-4 py-3 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      <PageSection
+        title="Filter & search"
+        description="Use smart filters or search across filenames, captured prompts, and annotations."
+        icon={<Filter className="h-6 w-6" />}
+      >
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full max-w-lg">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search filename, prompt keywords, or enhancements"
+              className="w-full rounded-full border border-gray-200 bg-white/90 px-12 py-3 text-sm text-gray-700 shadow-[0_10px_30px_-20px_rgba(59,130,246,0.4)] focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {historyFilters.map((filter) => (
+              <Button
+                key={filter.value}
+                variant={selectedFilter === filter.value ? 'primary' : 'ghost'}
+                size="sm"
+                onClick={() => setSelectedFilter(filter.value)}
               >
-                <option value="all">All Items</option>
-                <option value="image">Images Only</option>
-                <option value="video">Videos Only</option>
-                <option value="completed">Completed Only</option>
-                <option value="failed">Failed Only</option>
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-            </div>
+                {filter.label}
+              </Button>
+            ))}
           </div>
         </div>
+      </PageSection>
 
-        {/* History Grid */}
+      <PageSection
+        title="Archive"
+        description="Click into any record to open the full prompt, enhancement notes, and export options."
+        icon={<Sparkles className="h-6 w-6" />}
+      >
         {isLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading your history...</p>
+          <div className="flex items-center justify-center gap-3 rounded-3xl border border-dashed border-blue-300/70 bg-blue-50/40 p-10 text-blue-600 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-200">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Loading your archive…</span>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl shadow-lg">
-            <FileImage className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No items found</h3>
-            <p className="text-gray-600">
-              {searchQuery || selectedFilter !== 'all' 
-                ? 'Try adjusting your filters or search query'
-                : 'Start analyzing files to see your history here'
-              }
-            </p>
-          </div>
+          <Card variant="outline" padding="lg" className="text-center text-gray-500 dark:text-slate-300">
+            <FileImage className="mx-auto h-12 w-12 text-gray-300 dark:text-slate-600" />
+            <p className="mt-4 text-lg font-semibold text-gray-800 dark:text-slate-100">No results matched</p>
+            <p className="text-sm">Adjust filters or run a fresh analysis to populate your archive.</p>
+          </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredItems.map((item) => (
-              <div
-                key={item.job_id}
-                className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer"
-                onClick={() => {
-                  setSelectedItem(item);
-                  setShowModal(true);
-                }}
-              >
-                {/* Thumbnail */}
-                <div className="relative h-48 bg-gray-100 overflow-hidden">
-                  <img
-                    src={getThumbnailUrl(item)}
-                    alt={item.filename}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      console.log(`❌ Failed to load thumbnail: ${getThumbnailUrl(item)} for ${item.filename}`);
-                      // Fallback to placeholder
-                      e.currentTarget.src = item.content_type === 'video' 
-                        ? 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iIzk5ZjZmZiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE0IiBmaWxsPSIjMDA3Y2M3IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+VmlkZW88L3RleHQ+PC9zdmc+'
-                        : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iIzk5ZjZmZiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE0IiBmaWxsPSIjMDA3Y2M3IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+SW1hZ2U8L3RleHQ+PC9zdmc+';
-                    }}
-                  />
-                  
-                  {/* Content Type Badge */}
-                  <div className="absolute top-3 left-3">
-                    <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${
-                      item.content_type === 'video' 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-green-500 text-white'
-                    }`}>
-                      {item.content_type?.startsWith('video') ? (
-                        <FileVideo className="w-3 h-3" />
-                      ) : (
-                        <FileImage className="w-3 h-3" />
-                      )}
-                      <span>{item.content_type}</span>
-                    </div>
-                  </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {filteredItems.map((item) => {
+              const isVideo = item.content_type?.startsWith('video');
+              const status = getStatusTone(item.status);
+              const thumbnailUrl = item.thumbnail_url;
+              const showThumbnail = Boolean(thumbnailUrl && !brokenThumbnails[item.job_id]);
 
-                  {/* Status Badge */}
-                  <div className="absolute top-3 right-3">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}>
-                      {item.status}
-                    </span>
-                  </div>
-
-                  {/* Enhancement Features Badge */}
-                  {item.enhancement_features && item.enhancement_features.length > 0 && (
-                    <div className="absolute bottom-3 left-3">
-                      <div className="bg-purple-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
-                        <Sparkles className="w-3 h-3" />
-                        <span>Enhanced</span>
+              return (
+                  <Card
+                  key={item.job_id}
+                  variant="outline"
+                  padding="md"
+                  interactive
+                  className="group flex h-full flex-col gap-4 bg-white/85 dark:bg-slate-900/70"
+                  onClick={() => setSelectedItem(item)}
+                >
+                  <div className="overflow-hidden rounded-3xl border border-white/40 bg-gradient-to-br from-blue-100 via-white to-purple-100 shadow-inner shadow-blue-100 dark:border-slate-700/60 dark:from-slate-900/40 dark:via-slate-900/20 dark:to-slate-900/40">
+                    {showThumbnail ? (
+                      <div className="relative h-44 w-full">
+                        <img
+                          src={thumbnailUrl}
+                          alt={`${item.filename} thumbnail`}
+                          loading="lazy"
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                          onError={() =>
+                            setBrokenThumbnails((prev) => ({
+                              ...prev,
+                              [item.job_id]: true,
+                            }))
+                          }
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent" />
+                        <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                          <Chip tone={status.tone} size="sm" className="backdrop-blur">
+                            {status.label}
+                          </Chip>
+                          <Chip tone={isVideo ? 'purple' : 'blue'} size="sm" className="backdrop-blur">
+                            {isVideo ? 'Video asset' : 'Image asset'}
+                          </Chip>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <div className="flex h-44 w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-200 via-white to-purple-200 dark:from-slate-900/60 dark:via-slate-900/30 dark:to-slate-900/60">
+                        <span className="text-3xl">{isVideo ? '🎬' : '🖼️'}</span>
+                        <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Preview not available</p>
+                      </div>
+                    )}
+                  </div>
 
-                {/* Card Content */}
-                <div className="p-5">
-                  <h3 className="font-semibold text-gray-900 truncate mb-2">{item.filename}</h3>
-                  
-                  {/* Summary Info */}
-                  {item.summary && (
-                    <div className="text-xs text-gray-500 mb-3 space-y-1">
-                      {item.summary.resolution && (
-                        <div>Resolution: {item.summary.resolution}</div>
-                      )}
-                      {item.summary.duration && (
-                        <div>Duration: {item.summary.duration.toFixed(1)}s</div>
-                      )}
-                      {item.summary.frames_analyzed && (
-                        <div>Frames: {item.summary.frames_analyzed}</div>
-                      )}
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{item.filename}</h3>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Created {formatDate(item.created_at)}</p>
                     </div>
-                  )}
+                    <div className="flex flex-col items-end gap-2">
+                      {item.summary?.resolution && <Chip tone="gray" size="sm">{item.summary.resolution}</Chip>}
+                    </div>
+                  </div>
 
-                  {/* Prompt Preview */}
                   {item.prompt_preview && (
-                    <p className="text-sm text-gray-700 line-clamp-3 mb-3">
+                    <p className="line-clamp-3 rounded-2xl border border-gray-200/60 bg-white/70 p-4 text-sm text-gray-700 shadow-inner shadow-gray-200/40 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
                       {item.prompt_preview}
                     </p>
                   )}
 
-                  {/* Metadata */}
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <div className="flex items-center space-x-1">
-                      <Calendar className="w-3 h-3" />
+                  <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-slate-400">
+                    <span>Processing: {formatDuration(item.processing_time_seconds)}</span>
+                    {item.summary?.analysis_method && <span>Method: {item.summary.analysis_method}</span>}
+                    {item.summary?.frames_analyzed && <span>Frames: {item.summary.frames_analyzed}</span>}
+                  </div>
+
+                  {item.enhancement_features && item.enhancement_features.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {item.enhancement_features.slice(0, 3).map((feature: string) => (
+                        <Chip key={feature} tone="purple" size="sm">
+                          {feature.replace(/_/g, ' ')}
+                        </Chip>
+                      ))}
+                      {item.enhancement_features.length > 3 && (
+                        <Chip tone="gray" size="sm">+{item.enhancement_features.length - 3} more</Chip>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2 text-xs text-gray-500 dark:text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-3.5 w-3.5" />
                       <span>{formatDate(item.created_at)}</span>
                     </div>
-                    {item.processing_time_seconds && (
-                      <div className="flex items-center space-x-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{item.processing_time_seconds}s</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>{formatDuration(item.processing_time_seconds)}</span>
+                    </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex space-x-2 mt-4">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      leadingIcon={<Eye className="h-4 w-4" />}
+                      onClick={(event) => {
+                        event.stopPropagation();
                         setSelectedItem(item);
-                        setShowModal(true);
                       }}
-                      className="flex-1 bg-blue-500 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors flex items-center justify-center space-x-1"
                     >
-                      <Eye className="w-4 h-4" />
-                      <span>View</span>
-                    </button>
-                    
+                      View details
+                    </Button>
                     {item.main_prompt && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard(item.main_prompt!);
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        leadingIcon={<Copy className="h-4 w-4" />}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          applyCopy(item.main_prompt!);
                         }}
-                        className="bg-gray-100 text-gray-700 py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-                        title="Copy prompt"
                       >
-                        <Copy className="w-4 h-4" />
-                      </button>
+                        Copy prompt
+                      </Button>
                     )}
                   </div>
-                </div>
-              </div>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         )}
-      </div>
+      </PageSection>
 
-      {/* Modal for detailed view */}
-      {showModal && selectedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">{selectedItem.filename}</h2>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
+      {selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <Card variant="elevated" padding="lg" className="relative w-full max-w-4xl overflow-y-auto max-h-[92vh]">
+            <button
+              type="button"
+              onClick={() => setSelectedItem(null)}
+              className="absolute right-6 top-6 text-gray-400 transition hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-200"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="pr-8">
+              <div className="mb-6 space-y-2">
+                <Chip tone="blue" size="sm">Job ID: {selectedItem.job_id}</Chip>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">{selectedItem.filename}</h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Completed {selectedItem.completed_at ? formatDate(selectedItem.completed_at) : 'processing'}</p>
               </div>
 
-              {/* Full prompt display */}
-              {selectedItem.main_prompt && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-3">Generated Prompt</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
-                      {selectedItem.main_prompt}
-                    </p>
+              <div className="mb-8 overflow-hidden rounded-3xl border border-gray-200/70 bg-gray-100 shadow-inner shadow-gray-200/50 dark:border-slate-700/60 dark:bg-slate-900/60">
+                {selectedItem.thumbnail_url && !brokenThumbnails[selectedItem.job_id] ? (
+                  <img
+                    src={selectedItem.thumbnail_url}
+                    alt={`${selectedItem.filename} analysis preview`}
+                    className="h-80 w-full object-cover"
+                    onError={() =>
+                      setBrokenThumbnails((prev) => ({
+                        ...prev,
+                        [selectedItem.job_id]: true,
+                      }))
+                    }
+                  />
+                ) : (
+                  <div className="flex h-80 items-center justify-center bg-gradient-to-br from-blue-200 via-white to-purple-200 text-5xl dark:from-slate-900/60 dark:via-slate-900/30 dark:to-slate-900/60">
+                    {selectedItem.content_type?.startsWith('video') ? '🎬' : '🖼️'}
                   </div>
-                  <div className="flex space-x-2 mt-3">
-                    <button
-                      onClick={() => copyToClipboard(selectedItem.main_prompt!)}
-                      className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center space-x-2"
+                )}
+              </div>
+
+              {selectedItem.main_prompt && (
+                <div className="mb-6 space-y-3">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-slate-100">Generated prompt</h3>
+                  <div className="rounded-3xl border border-gray-200/60 bg-white/70 p-5 text-sm leading-relaxed text-gray-800 shadow-inner shadow-gray-200/40 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                    {selectedItem.main_prompt}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leadingIcon={<Copy className="h-4 w-4" />}
+                      onClick={() => applyCopy(selectedItem.main_prompt!)}
                     >
-                      <Copy className="w-4 h-4" />
-                      <span>Copy Prompt</span>
-                    </button>
-                    <button className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors flex items-center space-x-2">
-                      <Download className="w-4 h-4" />
-                      <span>Download</span>
-                    </button>
+                      Copy prompt
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      leadingIcon={<Download className="h-4 w-4" />}
+                      onClick={() => console.log('Download prompt requested')}
+                    >
+                      Download TXT
+                    </Button>
                   </div>
                 </div>
               )}
 
-              {/* Additional details */}
               {selectedItem.enhancement_features && selectedItem.enhancement_features.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold mb-3">Enhancement Features</h3>
+                <div className="mt-6 space-y-3">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-slate-100">Enhancement features</h3>
                   <div className="flex flex-wrap gap-2">
-                    {selectedItem.enhancement_features.map((feature, index) => (
-                      <span
-                        key={index}
-                        className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm"
-                      >
+                    {selectedItem.enhancement_features.map((feature: string) => (
+                      <Chip key={feature} tone="purple" size="sm">
                         {feature.replace(/_/g, ' ')}
-                      </span>
+                      </Chip>
                     ))}
                   </div>
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
+
+const HistorySpark = () => (
+  <span className="flex h-14 w-14 items-center justify-center rounded-3xl bg-white/70 text-indigo-500 shadow-inner shadow-blue-100 backdrop-blur-xl dark:bg-slate-900/60 dark:text-indigo-200 dark:shadow-slate-900/40">
+    <Sparkles className="h-7 w-7" />
+  </span>
+);
 
 export default UsageHistoryPage;

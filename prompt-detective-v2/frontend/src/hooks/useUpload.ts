@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { api } from '../services/api';
+import { resolveBackendAssetUrl } from '../lib/media';
 
 interface UploadProgress {
   (progress: number): void;
@@ -21,12 +22,21 @@ interface JobStatus {
   result?: any;
   created_at: string;
   completed_at?: string;
+  thumbnail_url?: string;
 }
 
 export const useUpload = () => {
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
 
-  const uploadFile = async (file: File, onProgress?: UploadProgress): Promise<UploadResponse> => {
+  const resolveThumbnail = useCallback(<T extends { thumbnail_url?: string | null }>(job: T): T => {
+    if (!job) return job;
+    return {
+      ...job,
+      thumbnail_url: resolveBackendAssetUrl(job.thumbnail_url),
+    };
+  }, []);
+
+  const uploadFile = useCallback(async (file: File, onProgress?: UploadProgress): Promise<UploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -44,27 +54,36 @@ export const useUpload = () => {
     });
 
     return response.data;
-  };
+  }, []);
 
-  const getJobStatus = async (jobId: string): Promise<JobStatus> => {
+  const getJobStatus = useCallback(async (jobId: string): Promise<JobStatus> => {
     const response = await api.get(`/jobs/${jobId}`);
-    return response.data;
-  };
+    return resolveThumbnail(response.data);
+  }, [resolveThumbnail]);
 
-  const getJobResults = async (jobId: string) => {
+  const getJobResults = useCallback(async (jobId: string) => {
     const response = await api.get(`/jobs/${jobId}/results`);
+    if (response?.data?.job) {
+      response.data.job = resolveThumbnail(response.data.job);
+    }
     return response.data;
-  };
+  }, [resolveThumbnail]);
 
-  const listJobs = async (statusFilter?: string, limit = 20, offset = 0) => {
+  const listJobs = useCallback(async (statusFilter?: string, limit = 20, offset = 0) => {
     const params = new URLSearchParams();
     if (statusFilter) params.append('status_filter', statusFilter);
     params.append('limit', limit.toString());
     params.append('offset', offset.toString());
 
     const response = await api.get(`/jobs?${params}`);
-    return response.data;
-  };
+    const data = response.data ?? {};
+
+    if (Array.isArray(data.jobs)) {
+      data.jobs = data.jobs.map((job: any) => resolveThumbnail(job));
+    }
+
+    return data;
+  }, [resolveThumbnail]);
 
   return {
     uploadFile,

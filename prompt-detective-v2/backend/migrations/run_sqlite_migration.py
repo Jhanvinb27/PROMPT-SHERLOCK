@@ -13,8 +13,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.database import Base, engine
 from app.models.user import (
     User, APIKey, AnalysisJob, UsageLog, Subscription,
-    AdminNote, OTPCode, Payment, CreditPack, ContactMessage, EmailLog
+    AdminNote, OTPCode, Payment, CreditPack, EmailLog, WaitlistSubscriber
 )
+from app.models.contact_message import ContactMessage
 
 def run_sqlite_migration():
     """

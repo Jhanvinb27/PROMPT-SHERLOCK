@@ -63,6 +63,12 @@ def run_migrations():
                 run_migration(DATABASE_URL)
             except Exception as e:
                 print(f"⚠️ Subscription features migration: {e}")
+
+            try:
+                from migrations.cleanup_launch_referral import run_migration as run_cleanup
+                run_cleanup(DATABASE_URL)
+            except Exception as e:
+                print(f"⚠️ Cleanup migration warning: {e}")
             
             print("   ✅ All migrations completed")
                 

@@ -1,9 +1,10 @@
 """
 Enhanced authentication system with JWT, OAuth, and security features
 """
-import os
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Union
+import re
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
 import jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -11,6 +12,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
+import httpx
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
 from .config import settings
 from ..database import get_db
@@ -225,31 +229,174 @@ def get_current_admin_user(current_user: User = Depends(get_current_active_user)
         )
     return current_user
 
-async def google_oauth_callback(code: str, redirect_uri: str) -> Dict[str, Any]:
-    """
-    Handle Google OAuth callback
-    TODO: Implement actual Google OAuth flow
-    """
-    # Placeholder implementation
-    # In production, exchange code for tokens and get user info
-    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
-    google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-    
+def _generate_unique_username(db: Session, base_username: str) -> str:
+    """Generate a unique, sanitized username candidate."""
+    sanitized = re.sub(r"[^a-zA-Z0-9]", "", (base_username or "").lower())
+    if not sanitized:
+        sanitized = "user"
+
+    candidate = sanitized
+    suffix = 1
+    while (
+        db.query(User)
+        .filter(func.lower(User.username) == candidate.lower())
+        .first()
+    ):
+        candidate = f"{sanitized}{suffix}"
+        suffix += 1
+
+    return candidate
+
+
+async def google_oauth_callback(code: str, redirect_uri: str, db: Session) -> TokenResponse:
+    """Exchange Google authorization code and return application tokens."""
+    google_client_id = settings.GOOGLE_CLIENT_ID
+    google_client_secret = settings.GOOGLE_CLIENT_SECRET
+
     if not google_client_id or not google_client_secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Google OAuth not configured"
         )
-    
-    # TODO: Implement Google OAuth token exchange
-    # 1. Exchange code for access token
-    # 2. Get user info from Google API
-    # 3. Create or update user in database
-    # 4. Return JWT tokens
-    
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Google OAuth implementation pending"
+
+    if not redirect_uri:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing redirect URI"
+        )
+
+    token_endpoint = "https://oauth2.googleapis.com/token"
+    token_payload = {
+        "code": code,
+        "client_id": google_client_id,
+        "client_secret": google_client_secret,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            token_response = await client.post(
+                token_endpoint,
+                data=token_payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            token_response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        response_detail = "unknown error"
+        if exc.response is not None:
+            try:
+                payload = exc.response.json()
+                response_detail = payload.get("error_description") or payload.get("error") or exc.response.text
+            except ValueError:
+                response_detail = exc.response.text
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Google token exchange failed: {response_detail or 'unknown error'}"
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not reach Google OAuth servers"
+        ) from exc
+
+    try:
+        token_data = token_response.json()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Invalid response from Google OAuth servers"
+        ) from exc
+    id_token_value = token_data.get("id_token")
+    if not id_token_value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google token response missing id_token"
+        )
+
+    try:
+        id_info = google_id_token.verify_oauth2_token(
+            id_token_value,
+            google_requests.Request(),
+            google_client_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Google ID token"
+        ) from exc
+
+    email = _normalize_email(id_info.get("email"))
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account does not include an email address"
+        )
+
+    full_name = id_info.get("name") or id_info.get("given_name") or email.split("@")[0]
+    email_verified = bool(id_info.get("email_verified", False))
+
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == email)
+        .first()
+    )
+
+    now_utc = datetime.now(timezone.utc)
+
+    if user is None:
+        username_candidate = _generate_unique_username(db, email.split("@")[0])
+        random_password = secrets.token_urlsafe(32)
+        hashed_password = get_password_hash(random_password)
+
+        user = User(
+            email=email,
+            password_hash=hashed_password,
+            full_name=full_name,
+            username=username_candidate,
+            subscription_tier="free",
+            is_active=True,
+            is_premium=False,
+            is_email_verified=email_verified,
+            api_calls_used=0,
+            api_calls_limit=50,
+        )
+
+        db.add(user)
+    else:
+        if full_name and user.full_name != full_name:
+            user.full_name = full_name
+        if not user.username:
+            user.username = _generate_unique_username(db, email.split("@")[0])
+        user.is_active = True
+        user.is_email_verified = user.is_email_verified or email_verified
+
+    user.last_login_at = now_utc
+    user.updated_at = now_utc
+
+    try:
+        db.commit()
+    except Exception as db_error:  # pragma: no cover - defensive
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to persist Google login"
+        ) from db_error
+
+    db.refresh(user)
+
+    access_token = create_access_token(
+        data={"sub": user.email, "user_id": user.id}
+    )
+    refresh_token = create_refresh_token(
+        data={"sub": user.email, "user_id": user.id}
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
+        user=_serialize_user(user)
     )
 
 def signup_user(db: Session, user_data: UserCreate) -> TokenResponse:

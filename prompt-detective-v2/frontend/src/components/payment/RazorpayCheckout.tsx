@@ -15,7 +15,6 @@ interface RazorpayCheckoutProps {
   planId: string;
   planName: string;
   billingCycle: 'monthly' | 'yearly';
-  useLaunchPricing?: boolean;
   onSuccess: (response: any) => void;
   onFailure: (error: any) => void;
   buttonText?: string;
@@ -50,7 +49,6 @@ export const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
   planId,
   planName,
   billingCycle,
-  useLaunchPricing = false,
   onSuccess,
   onFailure,
   buttonText,
@@ -121,8 +119,7 @@ export const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
         body: JSON.stringify({
           order_type: 'subscription',
           plan: planId,
-          billing_cycle: billingCycle,
-          use_launch_pricing: useLaunchPricing
+          billing_cycle: billingCycle
         })
       });
 
@@ -165,8 +162,7 @@ export const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
                 razorpay_signature: response.razorpay_signature,
                 order_type: 'subscription',
                 plan: planId,
-                billing_cycle: billingCycle,
-                use_launch_pricing: useLaunchPricing
+                billing_cycle: billingCycle
               })
             });
 

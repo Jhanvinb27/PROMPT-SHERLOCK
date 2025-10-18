@@ -2,7 +2,7 @@
 SQLAlchemy models for the application
 """
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -35,11 +35,6 @@ class User(Base):
     daily_analyses_count = Column(Integer, default=0)  # Resets daily
     last_reset_date = Column(DateTime(timezone=True))
     total_analyses_count = Column(Integer, default=0)  # Lifetime count
-    
-    # Referral system
-    referral_code = Column(String, unique=True, index=True)  # User's unique referral code
-    referred_by_code = Column(String)  # Code of user who referred them
-    referral_credits = Column(Integer, default=0)  # Credits earned from referrals
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -131,10 +126,6 @@ class Subscription(Base):
     razorpay_subscription_id = Column(String)
     razorpay_customer_id = Column(String)
     auto_renew = Column(Boolean, default=True)
-    
-    # Launch pricing lock
-    is_launch_pricing = Column(Boolean, default=False)
-    locked_price = Column(Float)  # Forever locked launch price
     
     # Relationships
     user = relationship("User", back_populates="subscriptions")
@@ -229,3 +220,19 @@ class EmailLog(Base):
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     sent_at = Column(DateTime(timezone=True))
+
+
+class WaitlistSubscriber(Base):
+    __tablename__ = "waitlist_subscribers"
+
+    __table_args__ = (UniqueConstraint("email", "plan_name", name="uq_waitlist_email_plan"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, nullable=False)
+    plan_name = Column(String, nullable=True)
+    source = Column(String, nullable=True)  # e.g. coming_soon_page, landing_cta
+    notes = Column(Text)
+    is_notified = Column(Boolean, default=False)
+    notified_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

@@ -8,46 +8,68 @@ interface OTPInputProps {
   error?: boolean;
 }
 
-const OTPInput: React.FC<OTPInputProps> = ({ 
-  length = 6, 
-  value, 
-  onChange, 
+const PLACEHOLDER = ' ';
+
+const OTPInput: React.FC<OTPInputProps> = ({
+  length = 6,
+  value,
+  onChange,
   disabled = false,
-  error = false 
+  error = false,
 }) => {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
+  const isDigit = (char: string | undefined): char is string => !!char && /[0-9]/.test(char);
+
+  const normaliseValue = () =>
+    Array.from({ length }, (_, index) => {
+      const char = value?.[index];
+      return isDigit(char) ? char : PLACEHOLDER;
+    });
+
+  const commitDigits = (digits: string[]) => {
+    const joined = digits.join('');
+    onChange(joined);
+  };
+
   const handleChange = (index: number, inputValue: string) => {
-    // Only allow digits
-    const digit = inputValue.replace(/[^0-9]/g, '');
-    
-    if (digit.length === 0) {
-      // Handle backspace
-      const newValue = value.substring(0, index) + value.substring(index + 1);
-      onChange(newValue);
+    const sanitized = inputValue.replace(/[^0-9]/g, '');
+    const digits = normaliseValue();
+
+    if (sanitized.length === 0) {
+      digits[index] = PLACEHOLDER;
+      commitDigits(digits);
+      if (index > 0) {
+        inputRefs.current[index - 1]?.focus();
+      }
       return;
     }
 
-    if (digit.length === 1) {
+    if (sanitized.length === 1) {
       // Single digit input
-      const newValue = value.substring(0, index) + digit + value.substring(index + 1);
-      onChange(newValue);
-      
+      digits[index] = sanitized;
+      commitDigits(digits);
+
       // Move to next input
       if (index < length - 1) {
         inputRefs.current[index + 1]?.focus();
       }
-    } else if (digit.length === length) {
+    } else {
       // Pasted full OTP
-      onChange(digit);
-      inputRefs.current[length - 1]?.focus();
+      const incomingDigits = sanitized.slice(0, length).split('');
+      const mergedDigits = Array.from({ length }, (_, digitIndex) => incomingDigits[digitIndex] ?? PLACEHOLDER);
+      commitDigits(mergedDigits);
+      const focusIndex = Math.min(incomingDigits.length, length) - 1;
+      if (focusIndex >= 0) {
+        inputRefs.current[focusIndex]?.focus();
+      }
     }
   };
 
   const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace') {
-      if (!value[index] && index > 0) {
+      if (!isDigit(value?.[index]) && index > 0) {
         // Move to previous input on backspace if current is empty
         inputRefs.current[index - 1]?.focus();
       }
@@ -62,10 +84,11 @@ const OTPInput: React.FC<OTPInputProps> = ({
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text/plain');
     const digits = pastedData.replace(/[^0-9]/g, '').substring(0, length);
-    
-    if (digits.length === length) {
-      onChange(digits);
-      inputRefs.current[length - 1]?.focus();
+    const paddedDigits = Array.from({ length }, (_, index) => digits[index] ?? PLACEHOLDER);
+    commitDigits(paddedDigits);
+    const focusIndex = Math.min(digits.length, length) - 1;
+    if (focusIndex >= 0) {
+      inputRefs.current[focusIndex]?.focus();
     }
   };
 
@@ -78,7 +101,7 @@ const OTPInput: React.FC<OTPInputProps> = ({
           type="text"
           inputMode="numeric"
           maxLength={1}
-          value={value[index] || ''}
+          value={isDigit(value?.[index]) ? value?.[index] ?? '' : ''}
           onChange={(e) => handleChange(index, e.target.value)}
           onKeyDown={(e) => handleKeyDown(index, e)}
           onPaste={handlePaste}

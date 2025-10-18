@@ -1,6 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  BadgeCheck,
+  BarChart3,
+  Crown,
+  Loader2,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  Zap,
+  X,
+} from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { adminService, AdminDashboardStats, UserDetail } from '../services/adminService';
+import PageContainer from '../components/page/PageContainer';
+import PageHeader from '../components/PageHeader';
+import PageSection from '../components/page/PageSection';
+import Card from '../components/ui/Card';
+import Chip from '../components/ui/Chip';
+import { Button } from '../components/ui/Button';
 
 const AdminPage: React.FC = () => {
   const { user } = useAuth();
@@ -12,20 +32,8 @@ const AdminPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
 
-  // Check if user is admin
-  if (!user || (!user.is_admin && !user.is_super_admin)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center p-8 bg-white rounded-lg shadow-lg">
-          <div className="text-6xl mb-4">🔒</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600">You don't have admin permission to access this page.</p>
-        </div>
-      </div>
-    );
-  }
+  const isAuthorized = Boolean(user && (user.is_admin || user.is_super_admin));
 
-  // Load dashboard data
   useEffect(() => {
     loadDashboardData();
   }, []);
@@ -97,31 +105,74 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  if (loading && !stats) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-lg text-gray-600">Loading admin dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  const statCards = useMemo(
+    () => [
+      {
+        key: 'total_users',
+        label: 'Total users',
+        value: stats?.total_users ?? 0,
+        helper: `${stats?.active_users ?? 0} active • ${stats?.verified_users ?? 0} verified`,
+        icon: <Users className="h-5 w-5 text-blue-500" />,
+      },
+      {
+        key: 'premium_users',
+        label: 'Premium accounts',
+        value: stats?.premium_users ?? 0,
+        helper:
+          stats && stats.total_users
+            ? `${Math.round((stats.premium_users / stats.total_users) * 100)}% of user base`
+            : '—',
+        icon: <Crown className="h-5 w-5 text-amber-500" />,
+      },
+      {
+        key: 'analyses',
+        label: 'Total analyses',
+        value: stats?.total_analyses ?? 0,
+        helper: `${stats?.analyses_today ?? 0} processed today`,
+        icon: <BarChart3 className="h-5 w-5 text-purple-500" />,
+      },
+      {
+        key: 'api_calls',
+        label: 'API calls',
+        value: stats?.total_api_calls ?? 0,
+        helper: 'Platform-wide requests',
+        icon: <Activity className="h-5 w-5 text-emerald-500" />,
+      },
+    ],
+    [stats]
+  );
 
-  if (error && !stats) {
+  const membershipDistribution = useMemo(
+    () => [
+      {
+        label: 'Free tier',
+        value: stats?.subscription_breakdown.free ?? 0,
+        tone: 'gray',
+      },
+      {
+        label: 'Pro tier',
+        value: stats?.subscription_breakdown.pro ?? 0,
+        tone: 'blue',
+      },
+      {
+        label: 'Business / Enterprise',
+        value: stats?.subscription_breakdown.enterprise ?? 0,
+        tone: 'purple',
+      },
+    ],
+    [stats]
+  );
+
+  if (!isAuthorized) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center bg-white p-8 rounded-lg shadow-lg">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-red-600 mb-2">Error</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={loadDashboardData} 
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Retry
-          </button>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-950">
+        <Card variant="elevated" padding="lg" className="text-center">
+          <div className="flex flex-col items-center gap-4">
+            <ShieldCheck className="h-12 w-12 text-blue-500" />
+            <h2 className="text-2xl font-semibold text-gray-900">Restricted area</h2>
+            <p className="text-sm text-gray-600">You need admin permissions to access this dashboard.</p>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -139,355 +190,326 @@ const AdminPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-gray-600 mt-1">Manage users, monitor system health, and view analytics</p>
+    <PageContainer>
+      <PageHeader
+        title="Admin control center"
+        subtitle="Monitor adoption, manage user access, and keep the reverse engineering pipeline healthy."
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Admin' }]}
+        primaryAction={{ label: 'Refresh data', onClick: loadDashboardData }}
+        secondaryAction={{ label: 'Export snapshot', onClick: () => console.log('Exporting dashboard snapshot') }}
+        illustration={<Sparkles className="h-10 w-10 text-indigo-500" />}
+      />
+
+      <div className="flex flex-wrap gap-3 text-sm text-slate-500 dark:text-slate-400">
+        <Chip tone="blue" size="sm">Live analytics</Chip>
+        <Chip tone="emerald" size="sm">User orchestration</Chip>
+        <Chip tone="purple" size="sm">Pipeline monitoring</Chip>
+      </div>
+
+      {error && (
+        <Card variant="outline" padding="md" className="mt-6 border-red-200/60 bg-red-50/50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <BadgeCheck className="h-5 w-5" />
+              <div>
+                <p className="text-sm font-semibold">We hit a snag while loading analytics.</p>
+                <p className="text-xs opacity-80">{error}</p>
+              </div>
             </div>
-            <div className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg">
-              <span className="font-semibold">{user.is_super_admin ? 'Super Admin' : 'Admin'}</span>
-              <span className="text-2xl">👑</span>
-            </div>
+            <Button size="sm" variant="ghost" leadingIcon={<RefreshCw className="h-4 w-4" />} onClick={loadDashboardData}>
+              Retry
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <PageSection
+        title="Realtime snapshot"
+        description="Key health indicators for Prompt Detective across users and workloads."
+        icon={<Activity className="h-6 w-6" />}
+        variant="translucent"
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {statCards.map((card) => (
+            <Card
+              key={card.key}
+              variant="outline"
+              padding="lg"
+              className="flex flex-col gap-4 bg-white/80 dark:bg-slate-900/70"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-300">{card.label}</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">
+                    {card.value.toLocaleString()}
+                  </p>
+                </div>
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-500 dark:bg-indigo-500/10 dark:text-indigo-200">
+                  {card.icon}
+                </span>
+              </div>
+              <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">{card.helper}</p>
+            </Card>
+          ))}
+        </div>
+      </PageSection>
+
+      <PageSection
+        title="Membership mix"
+        description="How creators, power users, and teams are distributed across plans."
+        icon={<Users className="h-6 w-6" />}
+      >
+        <div className="grid gap-4 md:grid-cols-3">
+          {membershipDistribution.map((tier) => {
+            const totalUsers = stats?.total_users ?? 1;
+            const percentage = totalUsers ? Math.round((tier.value / totalUsers) * 100) : 0;
+
+            return (
+              <Card key={tier.label} variant="outline" padding="lg" className="bg-white/80 dark:bg-slate-900/70">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{tier.label}</p>
+                <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">{tier.value.toLocaleString()}</p>
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900">
+                    <Sparkles className="h-4 w-4" />
+                  </span>
+                  <span>{percentage}% of the user base</span>
+                </div>
+                <div className="mt-4 h-2 w-full rounded-full bg-slate-200 dark:bg-slate-800">
+                  <div
+                    className={`h-2 rounded-full ${
+                      tier.tone === 'blue'
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                        : tier.tone === 'purple'
+                        ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500'
+                        : 'bg-gradient-to-r from-slate-400 to-slate-500'
+                    }`}
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </PageSection>
+
+      <PageSection
+        title="User management"
+        description="Search, review, and take action on individual accounts."
+        icon={<ShieldCheck className="h-6 w-6" />}
+        actions={
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              leadingIcon={<RefreshCw className="h-4 w-4" />}
+              onClick={loadDashboardData}
+            >
+              Sync latest
+            </Button>
+          </div>
+        }
+      >
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && handleSearch()}
+              placeholder="Search by name, email, or tier"
+              className="w-full rounded-full border border-slate-200 bg-white/80 px-12 py-3 text-sm text-slate-700 shadow-[0_10px_35px_-25px_rgba(37,99,235,0.6)] focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={handleSearch} leadingIcon={<Search className="h-4 w-4" />}>
+              Search
+            </Button>
+            {searchQuery && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setSearchQuery('');
+                  loadDashboardData();
+                }}
+              >
+                Clear
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Total Users */}
-          <div className="bg-white overflow-hidden shadow-lg rounded-lg border-l-4 border-blue-500">
-            <div className="p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                    <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                    </svg>
-                  </div>
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Total Users</dt>
-                    <dd className="text-2xl font-bold text-gray-900">{stats?.total_users.toLocaleString() || 0}</dd>
-                    <dd className="text-xs text-gray-500 mt-1">
-                      {stats?.active_users} active • {stats?.verified_users} verified
-                    </dd>
-                  </dl>
-                </div>
-              </div>
+        <div className="overflow-hidden rounded-3xl border border-white/40 bg-white/70 shadow-[0_32px_90px_-45px_rgba(37,99,235,0.35)] backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-900/70">
+          {loading ? (
+            <div className="flex items-center justify-center gap-3 p-10 text-slate-500 dark:text-slate-300">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>Fetching latest accounts…</span>
             </div>
-          </div>
-
-          {/* Premium Users */}
-          <div className="bg-white overflow-hidden shadow-lg rounded-lg border-l-4 border-yellow-500">
-            <div className="p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
-                    <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  </div>
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Premium Users</dt>
-                    <dd className="text-2xl font-bold text-gray-900">{stats?.premium_users.toLocaleString() || 0}</dd>
-                    <dd className="text-xs text-gray-500 mt-1">
-                      {stats && Math.round((stats.premium_users / stats.total_users) * 100)}% of total
-                    </dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Total Analyses */}
-          <div className="bg-white overflow-hidden shadow-lg rounded-lg border-l-4 border-purple-500">
-            <div className="p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                    <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                    </svg>
-                  </div>
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Total Analyses</dt>
-                    <dd className="text-2xl font-bold text-gray-900">{stats?.total_analyses.toLocaleString() || 0}</dd>
-                    <dd className="text-xs text-gray-500 mt-1">
-                      {stats?.analyses_today} today
-                    </dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* API Calls */}
-          <div className="bg-white overflow-hidden shadow-lg rounded-lg border-l-4 border-green-500">
-            <div className="p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-                    <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Total API Calls</dt>
-                    <dd className="text-2xl font-bold text-gray-900">{stats?.total_api_calls.toLocaleString() || 0}</dd>
-                    <dd className="text-xs text-gray-500 mt-1">
-                      Platform-wide usage
-                    </dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Subscription Breakdown */}
-        <div className="bg-white shadow-lg rounded-lg p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Subscription Distribution</h2>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <div className="text-3xl font-bold text-gray-700">{stats?.subscription_breakdown.free || 0}</div>
-              <div className="text-sm text-gray-500 mt-1">Free Tier</div>
-              <div className="text-xs text-gray-400 mt-1">
-                {stats && Math.round((stats.subscription_breakdown.free / stats.total_users) * 100)}%
-              </div>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-3xl font-bold text-blue-700">{stats?.subscription_breakdown.pro || 0}</div>
-              <div className="text-sm text-blue-600 mt-1">Pro Tier</div>
-              <div className="text-xs text-blue-400 mt-1">
-                {stats && Math.round((stats.subscription_breakdown.pro / stats.total_users) * 100)}%
-              </div>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-3xl font-bold text-purple-700">{stats?.subscription_breakdown.enterprise || 0}</div>
-              <div className="text-sm text-purple-600 mt-1">Enterprise</div>
-              <div className="text-xs text-purple-400 mt-1">
-                {stats && Math.round((stats.subscription_breakdown.enterprise / stats.total_users) * 100)}%
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* User Management */}
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">User Management</h2>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  placeholder="Search users..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <button
-                  onClick={handleSearch}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Search
-                </button>
-                {searchQuery && (
-                  <button
-                    onClick={() => { setSearchQuery(''); loadDashboardData(); }}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {users.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <div className="text-6xl mb-4">👥</div>
-              <p>No users found</p>
+          ) : users.length === 0 ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-2 text-slate-500 dark:text-slate-300">
+              <Zap className="h-8 w-8" />
+              <p>No users matched your filters.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tier</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Analyses</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              <table className="min-w-full divide-y divide-white/40 text-left text-sm text-slate-600 dark:divide-slate-700 dark:text-slate-200">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-slate-400">
+                    <th className="px-6 py-4">User</th>
+                    <th className="px-6 py-4">Tier</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Usage</th>
+                    <th className="px-6 py-4">Analyses</th>
+                    <th className="px-6 py-4">Joined</th>
+                    <th className="px-6 py-4">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {users.map((userItem) => (
-                    <tr key={userItem.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                            {userItem.full_name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900 flex items-center space-x-2">
-                              <span>{userItem.full_name}</span>
-                              {userItem.is_super_admin && <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">Super Admin</span>}
-                              {userItem.is_admin && !userItem.is_super_admin && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Admin</span>}
+                <tbody className="divide-y divide-white/30 dark:divide-slate-800">
+                  {users.map((userItem) => {
+                    const usagePercentage =
+                      userItem.api_calls_limit === -1
+                        ? 100
+                        : Math.min((userItem.api_calls_used / userItem.api_calls_limit) * 100, 100);
+
+                    return (
+                      <tr key={userItem.id} className="transition hover:bg-white/60 dark:hover:bg-slate-900/60">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 text-base font-semibold text-white">
+                              {userItem.full_name.charAt(0).toUpperCase()}
+                            </span>
+                            <div>
+                              <p className="font-semibold text-slate-800 dark:text-white">{userItem.full_name}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">{userItem.email}</p>
+                              <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                {userItem.is_super_admin && <span className="rounded-full bg-purple-500/15 px-2 py-0.5 text-purple-500">Super admin</span>}
+                                {userItem.is_admin && !userItem.is_super_admin && (
+                                  <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-blue-500">Admin</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-sm text-gray-500">{userItem.email}</div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          userItem.subscription_tier === 'enterprise' ? 'bg-purple-100 text-purple-800' :
-                          userItem.subscription_tier === 'pro' ? 'bg-blue-100 text-blue-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {userItem.subscription_tier}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-col space-y-1">
-                          {userItem.is_active && <span className="text-xs text-green-600">● Active</span>}
-                          {!userItem.is_active && <span className="text-xs text-red-600">● Inactive</span>}
-                          {userItem.is_premium && <span className="text-xs text-yellow-600">⭐ Premium</span>}
-                          {userItem.is_email_verified && <span className="text-xs text-blue-600">✓ Verified</span>}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {userItem.api_calls_used.toLocaleString()} / {formatUsageLimit(userItem.api_calls_limit)}
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                          <div 
-                            className={`h-2 rounded-full ${userItem.api_calls_limit === -1 ? 'bg-green-500' : 'bg-blue-600'}`}
-                            style={{ width: userItem.api_calls_limit === -1 ? '100%' : `${Math.min((userItem.api_calls_used / userItem.api_calls_limit) * 100, 100)}%` }}
-                          ></div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {userItem.total_analyses}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(userItem.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => handleViewUser(userItem.id)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          View
-                        </button>
-                        {user.is_super_admin && (
-                          <>
-                            <button
-                              onClick={() => handleTogglePremium(userItem.id)}
-                              className="text-purple-600 hover:text-purple-900"
-                            >
-                              {userItem.is_premium ? 'Remove Premium' : 'Make Premium'}
-                            </button>
-                            <button
-                              onClick={() => handleResetUsage(userItem.id)}
-                              className="text-green-600 hover:text-green-900"
-                            >
-                              Reset Usage
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-6 py-4">
+                          <Chip tone={userItem.subscription_tier === 'enterprise' ? 'purple' : userItem.subscription_tier === 'pro' ? 'blue' : 'gray'} size="sm">
+                            {userItem.subscription_tier}
+                          </Chip>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1 text-xs">
+                            <span className={`font-semibold ${userItem.is_active ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {userItem.is_active ? '● Active' : '● Inactive'}
+                            </span>
+                            {userItem.is_premium && <span className="text-amber-500">⭐ Premium</span>}
+                            {userItem.is_email_verified && <span className="text-blue-500">✓ Email verified</span>}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            {userItem.api_calls_used.toLocaleString()} / {formatUsageLimit(userItem.api_calls_limit)}
+                          </p>
+                          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                            <div
+                              className={`h-2 rounded-full ${
+                                userItem.api_calls_limit === -1
+                                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                                  : 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                              }`}
+                              style={{ width: `${usagePercentage}%` }}
+                            />
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          {userItem.total_analyses.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-300">
+                          {formatDate(userItem.created_at)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="xs" variant="ghost" onClick={() => handleViewUser(userItem.id)}>
+                              View
+                            </Button>
+                            {user?.is_super_admin && (
+                              <>
+                                <Button
+                                  size="xs"
+                                  variant="ghost"
+                                  onClick={() => handleTogglePremium(userItem.id)}
+                                >
+                                  {userItem.is_premium ? 'Remove premium' : 'Make premium'}
+                                </Button>
+                                <Button
+                                  size="xs"
+                                  variant="ghost"
+                                  onClick={() => handleResetUsage(userItem.id)}
+                                >
+                                  Reset usage
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
+      </PageSection>
 
-        {/* User Details Modal */}
-        {showUserModal && selectedUser && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">User Details</h3>
-                <button
-                  onClick={() => setShowUserModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">ID</label>
-                    <p className="text-gray-900">{selectedUser.id}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Username</label>
-                    <p className="text-gray-900">{selectedUser.username}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Email</label>
-                    <p className="text-gray-900">{selectedUser.email}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Full Name</label>
-                    <p className="text-gray-900">{selectedUser.full_name}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Subscription Tier</label>
-                    <p className="text-gray-900 capitalize">{selectedUser.subscription_tier}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Status</label>
-                    <p className="text-gray-900">{selectedUser.is_active ? 'Active' : 'Inactive'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">API Calls Used</label>
-                    <p className="text-gray-900">{selectedUser.api_calls_used.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">API Calls Limit</label>
-                    <p className="text-gray-900">{formatUsageLimit(selectedUser.api_calls_limit)}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Total Analyses</label>
-                    <p className="text-gray-900">{selectedUser.total_analyses}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Created At</label>
-                    <p className="text-gray-900">{formatDate(selectedUser.created_at)}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 pt-4 border-t">
-                  {selectedUser.is_active && <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">Active</span>}
-                  {selectedUser.is_premium && <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">Premium</span>}
-                  {selectedUser.is_email_verified && <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">Verified</span>}
-                  {selectedUser.is_admin && <span className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full">Admin</span>}
-                  {selectedUser.is_super_admin && <span className="px-3 py-1 bg-purple-200 text-purple-900 text-sm rounded-full font-bold">Super Admin</span>}
-                </div>
+      {showUserModal && selectedUser && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 px-4 py-10 backdrop-blur">
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-white/10 p-6 shadow-[0_50px_120px_-60px_rgba(99,102,241,0.6)] backdrop-blur-xl dark:bg-slate-900/80">
+            <button
+              onClick={() => setShowUserModal(false)}
+              className="absolute right-6 top-6 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-4 pb-6">
+              <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 text-2xl font-semibold text-white">
+                {selectedUser.full_name.charAt(0).toUpperCase()}
+              </span>
+              <div>
+                <h3 className="text-2xl font-semibold text-white">{selectedUser.full_name}</h3>
+                <p className="text-sm text-slate-300">{selectedUser.email}</p>
               </div>
             </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {[
+                { label: 'User ID', value: selectedUser.id },
+                { label: 'Username', value: selectedUser.username },
+                { label: 'Subscription', value: selectedUser.subscription_tier },
+                { label: 'Status', value: selectedUser.is_active ? 'Active' : 'Inactive' },
+                { label: 'API used', value: selectedUser.api_calls_used.toLocaleString() },
+                { label: 'API limit', value: formatUsageLimit(selectedUser.api_calls_limit) },
+                { label: 'Analyses', value: selectedUser.total_analyses.toLocaleString() },
+                { label: 'Created', value: formatDate(selectedUser.created_at) },
+              ].map((row) => (
+                <Card key={row.label} variant="translucent" padding="md" className="bg-white/5 text-slate-200">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">{row.label}</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{row.value ?? '—'}</p>
+                </Card>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-2 text-xs">
+              {selectedUser.is_active && <Chip tone="emerald" size="sm">Active</Chip>}
+              {selectedUser.is_premium && <Chip tone="amber" size="sm">Premium</Chip>}
+              {selectedUser.is_email_verified && <Chip tone="blue" size="sm">Email verified</Chip>}
+              {selectedUser.is_admin && <Chip tone="purple" size="sm">Admin</Chip>}
+              {selectedUser.is_super_admin && <Chip tone="purple" size="sm">Super admin</Chip>}
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </PageContainer>
   );
 };
 
