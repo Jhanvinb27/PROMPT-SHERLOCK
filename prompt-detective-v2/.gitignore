@@ -60,6 +60,10 @@ thumbnails/
 thumbnails_local/
 analysis_results/
 
+# Frontend source library files should be tracked
+!frontend/src/lib/
+!frontend/src/lib/**
+
 # Node modules (frontend)
 node_modules/
 
