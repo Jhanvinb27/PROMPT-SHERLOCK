@@ -11,6 +11,17 @@ import numpy as np
 import re
 import time
 
+# Import advanced accuracy components
+try:
+    from advanced_accuracy_engine import (
+        EnsembleAnalyzer, ConfidenceScorer, SemanticDeduplicator,
+        PromptOptimizer, VideoTemporalAnalyzer, AccuracyValidator
+    )
+    ADVANCED_ENGINE_AVAILABLE = True
+except ImportError:
+    print("⚠️ Advanced accuracy engine not available, using standard mode")
+    ADVANCED_ENGINE_AVAILABLE = False
+
 
 class EnhancedPromptEngine:
     """Advanced prompt engineering for maximum VLM accuracy"""
@@ -151,20 +162,57 @@ class AIAnalyzer:
         self.model = Config.GROQ_MODEL
         self.prompt_engine = EnhancedPromptEngine()
         self.analysis_cache = {}  # Cache for repeated analyses
+        
+        # Initialize advanced components if available
+        if ADVANCED_ENGINE_AVAILABLE:
+            self.ensemble_analyzer = EnsembleAnalyzer(self.client)
+            self.confidence_scorer = ConfidenceScorer()
+            self.deduplicator = SemanticDeduplicator()
+            self.prompt_optimizer = PromptOptimizer(self.client)
+            self.temporal_analyzer = VideoTemporalAnalyzer()
+            self.validator = AccuracyValidator()
+            print("✅ Advanced accuracy engine initialized")
+        else:
+            self.ensemble_analyzer = None
+            self.confidence_scorer = None
+            self.deduplicator = None
+            self.prompt_optimizer = None
+            self.temporal_analyzer = None
+            self.validator = None
     
     def analyze_image_with_enhanced_accuracy(self, image: np.ndarray, context: str = "") -> Dict[str, Any]:
         """
-        Enhanced image analysis with multiple validation passes
+        Enhanced image analysis with multiple validation passes and ensemble methods
         """
-        print("🔍 Starting enhanced accuracy image analysis...")
+        print("🔍 Starting MAXIMUM ACCURACY image analysis with ensemble validation...")
         
         # Convert image to base64 with maximum quality
         image_b64 = ImageProcessor.image_to_base64(image, quality=98)
         
-        # Multiple analysis passes for cross-validation
+        # STAGE 1: Ensemble Analysis (if available)
+        if self.ensemble_analyzer:
+            print("🎯 Stage 1/4: Ensemble analysis with multiple perspectives...")
+            ensemble_result = self.ensemble_analyzer.analyze_with_ensemble(image_b64, num_variations=3)
+            
+            if "error" not in ensemble_result:
+                # Extract all analyses
+                ensemble_analyses = ensemble_result.get("ensemble_analyses", [])
+                merged_text = ensemble_result.get("merged_analysis", "")
+                
+                # Deduplicate for cleaner output
+                if self.deduplicator and ensemble_analyses:
+                    all_contents = [a["content"] for a in ensemble_analyses]
+                    deduplicated = self.deduplicator.deduplicate_analyses(all_contents)
+                    ensemble_result["deduplicated_analysis"] = deduplicated
+        else:
+            # Fallback to standard multi-pass
+            ensemble_result = {"fallback": True}
+        
+        # STAGE 2: Standard Multi-Pass Analysis (always run for validation)
+        print("🔬 Stage 2/4: Multi-pass validation analysis...")
         analyses = []
         
-        # Pass 1: Detailed technical analysis
+        # Pass 1: Technical analysis
         technical_analysis = self._perform_technical_analysis(image_b64, context)
         if "error" not in technical_analysis:
             analyses.append(technical_analysis)
@@ -182,8 +230,67 @@ class AIAnalyzer:
         if not analyses:
             return {"error": "All analysis passes failed"}
         
-        # Synthesize all analyses into one comprehensive result
-        return self._synthesize_image_analyses(analyses, image.shape)
+        # STAGE 3: Synthesis and Optimization
+        print("🧠 Stage 3/4: Synthesizing and optimizing results...")
+        synthesized = self._synthesize_image_analyses(analyses, image.shape)
+        
+        # STAGE 4: Quality Scoring and Validation
+        print("✅ Stage 4/4: Quality validation and confidence scoring...")
+        
+        if self.confidence_scorer:
+            confidence_score = self.confidence_scorer.score_analysis_quality(synthesized)
+            synthesized["accuracy_confidence_score"] = confidence_score
+            
+            # Adjust confidence based on ensemble agreement
+            if ADVANCED_ENGINE_AVAILABLE and "consensus_elements" in ensemble_result:
+                agreement = ensemble_result["consensus_elements"].get("agreement_level", 0)
+                synthesized["ensemble_agreement"] = agreement
+                synthesized["final_confidence"] = (confidence_score * 0.6) + (agreement * 0.4)
+        
+        if self.validator:
+            validation = self.validator.validate_consistency(synthesized)
+            synthesized["validation_report"] = validation
+            
+            # Adjust final confidence based on validation
+            if "accuracy_confidence_score" in synthesized:
+                original_conf = synthesized["accuracy_confidence_score"]
+                adjustment = validation.get("confidence_adjustment", 1.0)
+                synthesized["accuracy_confidence_score"] = original_conf * adjustment
+        
+        # Optimize prompts
+        if self.prompt_optimizer and synthesized.get("comprehensive_analysis"):
+            print("⚡ Optimizing prompts for maximum generation accuracy...")
+            optimized_prompts = self.prompt_optimizer.optimize_prompt(
+                synthesized["comprehensive_analysis"]
+            )
+            
+            if "error" not in optimized_prompts:
+                synthesized["optimized_prompts"] = optimized_prompts
+                # Update main prompts with optimized versions
+                if optimized_prompts.get("master_prompt"):
+                    synthesized["master_prompt"] = optimized_prompts["master_prompt"]
+                if optimized_prompts.get("quick_prompt"):
+                    synthesized["suggested_prompt"] = optimized_prompts["quick_prompt"]
+                if optimized_prompts.get("negative_prompt"):
+                    synthesized["negative_prompt"] = optimized_prompts["negative_prompt"]
+        
+        # Add ensemble data if available
+        if ADVANCED_ENGINE_AVAILABLE and ensemble_result.get("ensemble_analyses"):
+            synthesized["ensemble_data"] = ensemble_result
+        
+        # Final accuracy summary
+        synthesized["accuracy_methods_used"] = [
+            "ensemble_analysis" if self.ensemble_analyzer else None,
+            "multi_pass_validation",
+            "confidence_scoring" if self.confidence_scorer else None,
+            "consistency_validation" if self.validator else None,
+            "prompt_optimization" if self.prompt_optimizer else None
+        ]
+        synthesized["accuracy_methods_used"] = [m for m in synthesized["accuracy_methods_used"] if m]
+        
+        print(f"✨ Analysis complete! Confidence: {synthesized.get('final_confidence', synthesized.get('accuracy_confidence_score', 'N/A'))}")
+        
+        return synthesized
     
     def _perform_technical_analysis(self, image_b64: str, context: str) -> Dict[str, Any]:
         """Technical analysis focused on production details"""
@@ -391,11 +498,12 @@ Do not include markdown, commentary, or additional keys. Fill arrays with at lea
     
     def analyze_video_frames(self, frames_with_timestamps: List[tuple], video_info: Dict) -> Dict[str, Any]:
         """
-        Enhanced video analysis with improved accuracy and comprehensive prompting
+        MAXIMUM ACCURACY video analysis with temporal flow analysis and ensemble validation
         """
-        print(f"🎬 Starting enhanced video analysis of {len(frames_with_timestamps)} frames...")
+        print(f"🎬 Starting MAXIMUM ACCURACY video analysis of {len(frames_with_timestamps)} frames...")
         
-        # Convert frames with enhanced preprocessing
+        # STAGE 1: Frame Preprocessing and Preparation
+        print("📐 Stage 1/5: Enhanced frame preprocessing...")
         frame_data = []
         for i, (frame, timestamp) in enumerate(frames_with_timestamps):
             # Enhanced image preprocessing for maximum quality
@@ -409,7 +517,23 @@ Do not include markdown, commentary, or additional keys. Fill arrays with at lea
                 "description": f"Frame {i+1} at {timestamp:.2f}s ({timestamp/video_info.get('duration', 1)*100:.1f}% through video)"
             })
         
-        # Enhanced batch processing with validation
+        # STAGE 2: Temporal Pattern Analysis (if advanced engine available)
+        temporal_patterns = None
+        if self.temporal_analyzer and hasattr(frames_with_timestamps[0], '__len__') and len(frames_with_timestamps[0]) > 2:
+            print("⏱️ Stage 2/5: Analyzing temporal flow and motion patterns...")
+            # Extract metadata from frames if available
+            frames_metadata = []
+            for frame_tuple in frames_with_timestamps:
+                if len(frame_tuple) > 2:
+                    metadata = frame_tuple[2] if isinstance(frame_tuple[2], dict) else {}
+                    frames_metadata.append(metadata)
+            
+            if frames_metadata:
+                temporal_patterns = self.temporal_analyzer.analyze_temporal_flow(frames_metadata)
+                print(f"   Detected pacing: {temporal_patterns.get('pacing_category', 'N/A')}")
+        
+        # STAGE 3: Enhanced Batch Processing with Retry Logic
+        print("🔄 Stage 3/5: Multi-batch analysis with validation...")
         batch_analyses = []
         max_images = Config.MAX_IMAGES_PER_REQUEST
         
@@ -418,7 +542,7 @@ Do not include markdown, commentary, or additional keys. Fill arrays with at lea
             batch = frame_data[batch_start:batch_end]
             batch_num = batch_start // max_images + 1
             
-            print(f"🔄 Processing batch {batch_num}/{(len(frame_data)-1)//max_images + 1} (frames {batch_start+1}-{batch_end})")
+            print(f"   Processing batch {batch_num}/{(len(frame_data)-1)//max_images + 1} (frames {batch_start+1}-{batch_end})")
             
             # Multiple analysis attempts for accuracy
             batch_result = None
@@ -427,25 +551,65 @@ Do not include markdown, commentary, or additional keys. Fill arrays with at lea
                     batch_result = self._analyze_frame_batch_enhanced(batch, video_info, batch_num)
                     if "error" not in batch_result:
                         break
-                    print(f"⚠️ Batch {batch_num} attempt {attempt+1} failed, retrying...")
+                    print(f"   ⚠️ Batch {batch_num} attempt {attempt+1} failed, retrying...")
                     time.sleep(1)  # Brief pause before retry
                 except Exception as e:
-                    print(f"❌ Batch {batch_num} attempt {attempt+1} error: {str(e)}")
+                    print(f"   ❌ Batch {batch_num} attempt {attempt+1} error: {str(e)}")
                     if attempt == 1:  # Last attempt
                         batch_result = {"error": f"Batch analysis failed after 2 attempts: {str(e)}"}
             
             if batch_result and "error" not in batch_result:
                 batch_analyses.append(batch_result)
             else:
-                print(f"⚠️ Skipping failed batch {batch_num}")
+                print(f"   ⚠️ Skipping failed batch {batch_num}")
         
         if not batch_analyses:
             return {"error": "All batch analyses failed"}
         
         print(f"✅ Successfully analyzed {len(batch_analyses)} batches")
         
-        # Enhanced synthesis with comprehensive prompting
-        return self._synthesize_batch_results_enhanced(batch_analyses, frame_data, video_info)
+        # STAGE 4: Comprehensive Synthesis
+        print("🧠 Stage 4/5: Synthesizing comprehensive video analysis...")
+        synthesized_result = self._synthesize_batch_results_enhanced(batch_analyses, frame_data, video_info)
+        
+        # Add temporal analysis if available
+        if temporal_patterns:
+            synthesized_result["temporal_analysis"] = temporal_patterns
+        
+        # STAGE 5: Quality Validation and Optimization
+        print("✨ Stage 5/5: Quality validation and prompt optimization...")
+        
+        if self.validator:
+            validation = self.validator.validate_consistency(synthesized_result)
+            synthesized_result["validation_report"] = validation
+        
+        # Optimize video prompt
+        if self.prompt_optimizer and synthesized_result.get("comprehensive_video_prompt"):
+            print("   Optimizing video generation prompts...")
+            optimized = self.prompt_optimizer.optimize_prompt(
+                synthesized_result["comprehensive_video_prompt"],
+                target_generator="universal"
+            )
+            
+            if "error" not in optimized:
+                synthesized_result["optimized_video_prompts"] = optimized
+                # Update main prompt
+                if optimized.get("master_prompt"):
+                    synthesized_result["master_video_prompt"] = optimized["master_prompt"]
+        
+        # Add accuracy metadata
+        synthesized_result["accuracy_methods_used"] = [
+            "enhanced_batch_processing",
+            "temporal_flow_analysis" if temporal_patterns else None,
+            "consistency_validation" if self.validator else None,
+            "prompt_optimization" if self.prompt_optimizer else None,
+            "multi_attempt_retry_logic"
+        ]
+        synthesized_result["accuracy_methods_used"] = [m for m in synthesized_result["accuracy_methods_used"] if m]
+        
+        print(f"🎉 Video analysis complete with {len(synthesized_result['accuracy_methods_used'])} accuracy methods!")
+        
+        return synthesized_result
     
     def _analyze_frame_batch_enhanced(self, frame_batch: List[Dict], video_info: Dict, batch_num: int) -> Dict[str, Any]:
         """

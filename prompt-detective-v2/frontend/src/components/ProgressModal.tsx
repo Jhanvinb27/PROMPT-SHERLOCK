@@ -260,17 +260,17 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
   const canCancel = jobStatus.status === 'pending' || jobStatus.status === 'processing';
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl transform transition-all">
+    <div className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-3xl p-8 max-w-md w-full shadow-[0_30px_70px_-25px_rgba(79,70,229,0.5)] dark:shadow-[0_30px_70px_-25px_rgba(15,23,42,0.8)] border border-white/60 dark:border-white/10 transform transition-all">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-gray-900">Processing Analysis</h3>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">Processing Analysis</h3>
           <div className="flex items-center space-x-2">
             {canCancel && !showCancelConfirm && (
               <button
                 onClick={() => setShowCancelConfirm(true)}
                 disabled={isCancelling}
-                className="text-orange-500 hover:text-orange-700 transition-colors text-sm font-medium px-3 py-1 border border-orange-500 rounded-lg hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 transition-colors text-sm font-medium px-3 py-1.5 border border-orange-500/40 dark:border-orange-400/40 rounded-full hover:bg-orange-50 dark:hover:bg-orange-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Cancel job"
               >
                 Cancel
@@ -279,7 +279,7 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
             {(jobStatus.status === 'completed' || jobStatus.status === 'failed' || jobStatus.status === 'cancelled') && (
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -289,22 +289,22 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
 
         {/* Cancel Confirmation */}
         {showCancelConfirm && (
-          <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-            <p className="text-sm font-medium text-orange-900 mb-3">
+          <div className="mb-6 p-4 bg-orange-50/80 dark:bg-orange-500/10 border border-orange-200/70 dark:border-orange-400/20 rounded-2xl backdrop-blur-sm">
+            <p className="text-sm font-medium text-orange-900 dark:text-orange-200 mb-3">
               Are you sure you want to cancel this analysis? This will not count towards your daily quota.
             </p>
             <div className="flex space-x-2">
               <button
                 onClick={handleCancelJob}
                 disabled={isCancelling}
-                className="flex-1 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-2.5 rounded-full hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCancelling ? 'Cancelling...' : 'Yes, Cancel'}
               </button>
               <button
                 onClick={() => setShowCancelConfirm(false)}
                 disabled={isCancelling}
-                className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 px-4 py-2.5 rounded-full hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 No, Continue
               </button>
@@ -313,15 +313,15 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
         )}
 
         {/* File Info */}
-        <div className="flex items-center space-x-3 mb-6 p-4 bg-gray-50 rounded-lg">
+        <div className="flex items-center space-x-3 mb-6 p-4 bg-gradient-to-br from-blue-50/60 via-white/30 to-purple-50/60 dark:from-slate-800/60 dark:via-slate-900/30 dark:to-slate-800/60 rounded-2xl border border-blue-100/50 dark:border-slate-700/50 backdrop-blur-sm">
           {contentType === 'video' ? (
-            <FileVideo className="w-8 h-8 text-blue-500 flex-shrink-0" />
+            <FileVideo className="w-8 h-8 text-blue-500 dark:text-blue-400 flex-shrink-0" />
           ) : (
-            <FileImage className="w-8 h-8 text-green-500 flex-shrink-0" />
+            <FileImage className="w-8 h-8 text-green-500 dark:text-green-400 flex-shrink-0" />
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{filename}</p>
-            <p className="text-xs text-gray-500 capitalize">{contentType} Analysis</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">{filename}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 capitalize">{contentType} Analysis</p>
           </div>
         </div>
 
@@ -330,25 +330,25 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
           <div className="flex justify-center mb-4">
             {getStatusIcon()}
           </div>
-          <p className="text-lg font-semibold text-gray-900 mb-2">
+          <p className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">
             {jobStatus.status === 'completed' ? 'Complete!' : 
              jobStatus.status === 'failed' ? 'Failed' :
              jobStatus.status === 'cancelled' ? 'Cancelled' :
              'Processing...'}
           </p>
-          <p className="text-sm text-gray-600">{stage}</p>
+          <p className="text-sm text-gray-600 dark:text-slate-400">{stage}</p>
           {jobStatus.error_message && (
-            <p className="text-sm text-red-600 mt-2">{jobStatus.error_message}</p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-2">{jobStatus.error_message}</p>
           )}
         </div>
 
         {/* Progress Bar */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">Progress</span>
-            <span className="text-sm text-gray-600">{jobStatus.progress}%</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-slate-300">Progress</span>
+            <span className="text-sm text-gray-600 dark:text-slate-400">{jobStatus.progress}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+          <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden shadow-inner">
             <div
               className={`h-full rounded-full transition-all duration-300 ease-out ${getProgressColor()}`}
               style={{ width: `${jobStatus.progress}%` }}
@@ -358,7 +358,7 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
 
         {/* Processing Steps Indicator - SYNCED WITH BACKEND STAGES */}
         <div className="space-y-2">
-          <div className="text-xs font-medium text-gray-500 mb-3">Processing Steps:</div>
+          <div className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-3">Processing Steps:</div>
           {[
             { name: 'File Upload', threshold: 0, maxThreshold: 10 },
             { name: 'Content Analysis', threshold: 10, maxThreshold: 20 },
@@ -374,21 +374,21 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
               <div key={index} className="flex items-center space-x-3">
                 <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
                   isCompleted
-                    ? (jobStatus.status === 'failed' || jobStatus.status === 'cancelled') ? 'bg-red-500' : 'bg-green-500'
+                    ? (jobStatus.status === 'failed' || jobStatus.status === 'cancelled') ? 'bg-red-500 dark:bg-red-400' : 'bg-green-500 dark:bg-green-400'
                     : isActive 
-                      ? 'bg-blue-500 animate-pulse ring-2 ring-blue-300' 
-                      : 'bg-gray-300'
+                      ? 'bg-blue-500 dark:bg-blue-400 animate-pulse ring-2 ring-blue-300 dark:ring-blue-500/50' 
+                      : 'bg-gray-300 dark:bg-slate-600'
                 }`} />
                 <span className={`text-sm transition-colors duration-300 ${
-                  isCompleted || isActive ? 'text-gray-900 font-medium' : 'text-gray-500'
+                  isCompleted || isActive ? 'text-gray-900 dark:text-slate-100 font-medium' : 'text-gray-500 dark:text-slate-500'
                 }`}>
                   {step.name}
                 </span>
                 {isActive && jobStatus.status === 'processing' && (
-                  <span className="text-xs text-blue-600 ml-auto">In Progress...</span>
+                  <span className="text-xs text-blue-600 dark:text-blue-400 ml-auto">In Progress...</span>
                 )}
                 {isCompleted && jobStatus.status !== 'failed' && jobStatus.status !== 'cancelled' && (
-                  <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />
+                  <CheckCircle className="w-4 h-4 text-green-500 dark:text-green-400 ml-auto" />
                 )}
               </div>
             );
@@ -397,13 +397,13 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
 
         {/* Action Button */}
         {jobStatus.status === 'completed' && (
-          <div className="mt-6 pt-6 border-t border-gray-200">
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-700">
             <button
               onClick={() => {
                 onComplete();
                 onClose();
               }}
-              className="w-full bg-green-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-600 transition-colors"
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 px-4 rounded-full font-semibold hover:shadow-lg hover:-translate-y-0.5 transition-all"
             >
               View Results
             </button>
@@ -411,10 +411,10 @@ const ProgressModal: React.FC<ProgressModalProps> = ({
         )}
 
         {(jobStatus.status === 'failed' || jobStatus.status === 'cancelled') && (
-          <div className="mt-6 pt-6 border-t border-gray-200">
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-700">
             <button
               onClick={onClose}
-              className="w-full bg-gray-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-600 transition-colors"
+              className="w-full bg-gray-500 dark:bg-slate-700 text-white py-3 px-4 rounded-full font-semibold hover:bg-gray-600 dark:hover:bg-slate-600 transition-colors"
             >
               Close
             </button>

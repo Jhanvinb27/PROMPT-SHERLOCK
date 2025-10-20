@@ -32,6 +32,21 @@ class Config:
     # API Limitations
     MAX_IMAGES_PER_REQUEST = 5   # Groq vision model limit
     
+    # Maximum Accuracy Configuration
+    ENABLE_ENSEMBLE_ANALYSIS = os.getenv("ENABLE_ENSEMBLE_ANALYSIS", "true").lower() == "true"
+    ENABLE_CONFIDENCE_SCORING = os.getenv("ENABLE_CONFIDENCE_SCORING", "true").lower() == "true"
+    ENABLE_TEMPORAL_ANALYSIS = os.getenv("ENABLE_TEMPORAL_ANALYSIS", "true").lower() == "true"
+    ENABLE_PROMPT_OPTIMIZATION = os.getenv("ENABLE_PROMPT_OPTIMIZATION", "true").lower() == "true"
+    ENABLE_CONSISTENCY_VALIDATION = os.getenv("ENABLE_CONSISTENCY_VALIDATION", "true").lower() == "true"
+    
+    # Ensemble Configuration
+    ENSEMBLE_NUM_VARIATIONS = int(os.getenv("ENSEMBLE_NUM_VARIATIONS", "3"))  # 3 different perspectives
+    ENSEMBLE_TEMPERATURE_BASE = float(os.getenv("ENSEMBLE_TEMPERATURE_BASE", "0.1"))  # Starting temperature
+    
+    # Quality Thresholds
+    MIN_CONFIDENCE_THRESHOLD = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.6"))
+    HIGH_CONFIDENCE_THRESHOLD = float(os.getenv("HIGH_CONFIDENCE_THRESHOLD", "0.8"))
+    
     # Video Processing Configuration
     VIDEO_EXTENSIONS = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm']
     IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
