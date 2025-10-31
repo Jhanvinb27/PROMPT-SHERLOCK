@@ -16,7 +16,7 @@ import traceback
 from .config import Config
 from .utils import VideoProcessor, ImageProcessor, SceneDetector, AdvancedFrameSelector, EnhancedSceneDetector
 from .ai_analyzer import AIAnalyzer, EnhancedPromptEngine
-from ..services.media_storage import generate_image_thumbnail, generate_video_thumbnail
+from ..services.thumbnail import generate_image_thumbnail, generate_video_thumbnail
 
 
 class ReverseEngineerSystem:
