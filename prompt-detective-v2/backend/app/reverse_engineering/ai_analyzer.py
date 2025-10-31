@@ -5,15 +5,15 @@ import base64
 from groq import Groq
 from typing import List, Dict, Any, Optional
 import json
-from config import Config
-from utils import ImageProcessor
+from .config import Config
+from .utils import ImageProcessor
 import numpy as np
 import re
 import time
 
 # Import advanced accuracy components
 try:
-    from advanced_accuracy_engine import (
+    from .advanced_accuracy_engine import (
         EnsembleAnalyzer, ConfidenceScorer, SemanticDeduplicator,
         PromptOptimizer, VideoTemporalAnalyzer, AccuracyValidator
     )
