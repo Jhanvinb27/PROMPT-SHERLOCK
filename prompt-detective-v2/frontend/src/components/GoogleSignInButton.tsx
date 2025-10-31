@@ -25,6 +25,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const navigate = useNavigate();
   const { setUser, setTokens, setError: setAuthError } = useAuthStore();
   const [isLoading, setIsLoading] = React.useState(false);
+  const redirectUri = React.useMemo(() => googleAuthService.getRedirectUri(), []);
 
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (codeResponse) => {
@@ -32,9 +33,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       console.log('Google OAuth code received:', codeResponse);
 
       try {
-        // Get redirect URI
-        const redirectUri = googleAuthService.getRedirectUri();
-        
         // Exchange authorization code for tokens
         const authResponse = await googleAuthService.exchangeCodeForTokens(
           codeResponse.code,
@@ -78,7 +76,8 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       }
     },
     flow: 'auth-code', // Use authorization code flow (more secure)
-    scope: 'openid email profile'
+    scope: 'openid email profile',
+    redirect_uri: redirectUri
   });
 
   return (

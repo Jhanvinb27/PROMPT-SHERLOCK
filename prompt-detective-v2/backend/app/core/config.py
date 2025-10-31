@@ -99,6 +99,13 @@ class Settings(BaseSettings):
             return None
         return "".join(value.split())
 
+    @staticmethod
+    def _sanitize_oauth_value(value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        cleaned = value.strip().strip('"').strip("'")
+        return cleaned or None
+
     def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
         """Normalize secrets that are sensitive to whitespace characters."""
         provider = (self.EMAIL_PROVIDER or "").lower()
@@ -126,6 +133,28 @@ class Settings(BaseSettings):
 
         if self.SECRET_KEY:
             self.SECRET_KEY = self.SECRET_KEY.strip()
+
+        # Normalize Google OAuth credentials and allow fallback env names
+        google_client_sources = (
+            self.GOOGLE_CLIENT_ID,
+            os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
+            os.getenv("VITE_GOOGLE_CLIENT_ID"),
+        )
+        for value in google_client_sources:
+            sanitized = self._sanitize_oauth_value(value)
+            if sanitized:
+                self.GOOGLE_CLIENT_ID = sanitized
+                break
+
+        google_secret_sources = (
+            self.GOOGLE_CLIENT_SECRET,
+            os.getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
+        )
+        for value in google_secret_sources:
+            sanitized = self._sanitize_oauth_value(value)
+            if sanitized:
+                self.GOOGLE_CLIENT_SECRET = sanitized
+                break
 
     @property
     def allowed_origins_list(self) -> list[str]:

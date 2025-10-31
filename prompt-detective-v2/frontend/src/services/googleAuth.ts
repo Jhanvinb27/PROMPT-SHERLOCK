@@ -7,6 +7,9 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_REDIRECT_URI =
+  (import.meta.env.VITE_GOOGLE_REDIRECT_URI && import.meta.env.VITE_GOOGLE_REDIRECT_URI.trim()) ||
+  '';
 
 export interface GoogleAuthResponse {
   access_token: string;
@@ -76,11 +79,11 @@ export const googleAuthService = {
    * Get current redirect URI based on environment
    */
   getRedirectUri: (): string => {
-    // In development, use localhost
-    // In production, use the deployed Vercel URL
-    if (import.meta.env.DEV) {
-      return window.location.origin;
+    if (GOOGLE_REDIRECT_URI) {
+      return GOOGLE_REDIRECT_URI;
     }
+
+    // In development and production fall back to current origin
     return window.location.origin;
   }
 };
