@@ -121,7 +121,7 @@ def _derive_cloudinary_public_id(file_url: Optional[str]) -> Optional[str]:
 
 # Import the actual reverse engineering system
 try:
-    from reverse_engineer import ReverseEngineerSystem
+    from ..reverse_engineering.reverse_engineer import ReverseEngineerSystem
     REVERSE_ENGINEER_AVAILABLE = True
     print("✅ Reverse engineering system imported successfully")
 except ImportError as e:
