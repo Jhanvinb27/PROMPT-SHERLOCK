@@ -19,6 +19,18 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/prompt_detective")
+    DB_SSL_MODE: str = os.getenv("DB_SSL_MODE", "require")
+    DB_POOL_ENABLED: bool = os.getenv("DB_POOL_ENABLED", "true").lower() == "true"
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "0"))
+    DB_POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+    DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "300"))
+    DB_PRE_PING: bool = os.getenv("DB_PRE_PING", "true").lower() == "true"
+    DB_STATEMENT_TIMEOUT_MS: int = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", "30000"))
+    DB_CONNECT_RETRIES: int = int(os.getenv("DB_CONNECT_RETRIES", "3"))
+    DB_RETRY_INITIAL_DELAY: float = float(os.getenv("DB_RETRY_INITIAL_DELAY", "1.5"))
+    DB_RETRY_BACKOFF_FACTOR: float = float(os.getenv("DB_RETRY_BACKOFF_FACTOR", "2.0"))
+    DB_ECHO: bool = os.getenv("DB_ECHO", "false").lower() == "true"
     
     # File Storage
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "./uploads")
