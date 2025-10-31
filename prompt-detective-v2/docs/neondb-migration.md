@@ -61,22 +61,8 @@ psql "$DATABASE_URL" -c "\dt"
 
 Environment variables required on Render:
 
-- `DATABASE_URL` – pooled Neon connection string (include `sslmode=require`).
-- `DB_SSL_MODE=require`
-- `DB_POOL_ENABLED=true`
-- `DB_POOL_SIZE=5`
-- `DB_MAX_OVERFLOW=0`
-- `DB_POOL_TIMEOUT=30`
-- `DB_POOL_RECYCLE=300`
-- `DB_PRE_PING=true`
-- `DB_STATEMENT_TIMEOUT_MS=30000`
-- `DB_CONNECT_RETRIES=5`
-- `DB_RETRY_INITIAL_DELAY=1.5`
-- `DB_RETRY_BACKOFF_FACTOR=2.0`
-- existing secrets (JWT, GROQ, email providers, Razorpay, etc.).
 
-Additional backend tasks:
-
+ In Render’s backend service, set the following env vars to the new values before redeploying (enter the values without wrapping quotes):
 - Redeploy the Render service after setting env vars so the new engine boots with Neon.
 - Confirm Render outbound networking allows `*.neon.tech` (it does by default).
 - Keep `run_migrations.py` enabled so legacy sqlite columns are ignored.

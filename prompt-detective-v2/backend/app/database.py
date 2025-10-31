@@ -21,10 +21,16 @@ def _normalize_database_url(raw_url: str) -> str:
         raise ValueError("DATABASE_URL is required")
 
     cleaned = raw_url.strip()
+    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in {'"', '\''}:
+        cleaned = cleaned[1:-1].strip()
+
     if cleaned.startswith("postgres://"):
         cleaned = cleaned.replace("postgres://", "postgresql://", 1)
 
-    url = make_url(cleaned)
+    try:
+        url = make_url(cleaned)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        raise ValueError("DATABASE_URL is not a valid SQLAlchemy URL") from exc
     drivername = url.drivername
     if drivername == "postgres":
         url = url.set(drivername="postgresql")
