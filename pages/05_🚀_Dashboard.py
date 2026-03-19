@@ -26,7 +26,7 @@ plan = getattr(user, 'role', 'free')
 
 with st.expander("Advanced Parameters (Pro)"):
     disabled = plan == 'free'
-    st.selectbox("Vision Model", ["meta-llama/llama-4-maverick-17b-128e-instruct","llama-3.2-vision-preview"], index=0, disabled=disabled, help="Select model (upgrade to unlock")
+    st.selectbox("Vision Model", ["meta-llama/llama-4-scout-17b-16e-instruct","llama-3.2-vision-preview"], index=0, disabled=disabled, help="Select model (upgrade to unlock")
     st.slider("Max Frames (override)", 3, 25, 10, disabled=disabled, help="Increase for better coverage (Pro)")
     if disabled:
         st.caption("Upgrade to Pro to customize model & frame count.")
